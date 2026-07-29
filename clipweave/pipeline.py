@@ -17,6 +17,7 @@ from .selection import (
     order_clips,
     orientation_ok,
     select_unique,
+    select_unique_segments,
     select_smart_sequences,
     target_similarity,
 )
@@ -54,11 +55,11 @@ def read_target(options: BuildOptions) -> Clip | None:
     raise RuntimeError(f"Unsupported target file type: {options.target}")
 
 
-def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> list[Clip]:
+def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> tuple[list[Clip], dict[str, int | None]]:
     """Order clips, apply smart editing, and optionally re-order salvaged segments."""
     selected = order_clips(clips, options.order)
     if not options.smart_editing:
-        return selected
+        return selected, {"after_smart_trim": None, "after_smart_dedupe": None}
 
     selected = select_smart_sequences(
         selected,
@@ -66,12 +67,20 @@ def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> list[Clip]
         options.smart_max_known_ratio,
         options.smart_min_segment_duration,
     )
+    trim_count = len(selected)
+    if options.smart_dedupe_segments:
+        selected = select_unique_segments(
+            selected,
+            options.smart_threshold,
+            options.smart_max_known_ratio,
+        )
+    dedupe_count = len(selected)
     if options.smart_reorder_segments:
-        return order_clips(selected, options.order)
-    return selected
+        selected = order_clips(selected, options.order)
+    return selected, {"after_smart_trim": trim_count, "after_smart_dedupe": dedupe_count}
 
 
-def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], dict[str, int], Clip | None]:
+def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], dict[str, int | None], Clip | None]:
     """Apply orientation, size, duplicate, ordering, and duration filters."""
     discovered = discover_clips(options.resolved_input_dir, options)
     if not discovered:
@@ -89,7 +98,7 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
     dimensions = choose_dimensions(clips, options.aspect_tolerance)
     same_size = [clip for clip in clips if clip.dimensions == dimensions]
     selected = select_unique(same_size, options.duplicate_threshold)
-    selected = order_and_smart_edit(selected, options)
+    selected, smart_counts = order_and_smart_edit(selected, options)
     smart_count = len(selected)
     selected = apply_duration_limit(selected, options.max_duration)
     if not selected:
@@ -99,6 +108,8 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
         "after_target_filter": len(clips),
         "after_size_filter": len(same_size),
         "after_smart_filter": smart_count,
+        "after_smart_trim": smart_counts["after_smart_trim"],
+        "after_smart_dedupe": smart_counts["after_smart_dedupe"],
     }
     return selected, dimensions, counts, target
 
@@ -140,7 +151,7 @@ def build_manifest(
     options: BuildOptions,
     clips: list[Clip],
     dimensions: tuple[int, int],
-    candidate_count: dict[str, int],
+    candidate_count: dict[str, int | None],
     transitions: list[Transition],
     target: Clip | None,
 ) -> dict:
@@ -159,6 +170,7 @@ def build_manifest(
         "smart_max_known_ratio": options.smart_max_known_ratio if options.smart_editing else None,
         "smart_min_segment_duration": options.smart_min_segment_duration if options.smart_editing else None,
         "smart_reorder_segments": options.smart_reorder_segments if options.smart_editing else None,
+        "smart_dedupe_segments": options.smart_dedupe_segments if options.smart_editing else None,
         "target": str(options.target) if options.target else None,
         "target_threshold": options.target_threshold if options.target else None,
         "transition": options.transition if not options.keep_audio else "cut",
@@ -166,6 +178,8 @@ def build_manifest(
         "source_candidates_after_orientation": candidate_count["after_orientation"],
         "source_candidates_after_target_filter": candidate_count["after_target_filter"],
         "source_candidates_after_smart_filter": candidate_count["after_smart_filter"] if options.smart_editing else None,
+        "source_candidates_after_smart_trim": candidate_count["after_smart_trim"] if options.smart_editing else None,
+        "source_candidates_after_smart_dedupe": candidate_count["after_smart_dedupe"] if options.smart_editing else None,
         "selected_clips_count": len(clips),
         "selected_clips_duration_sum": round(sum(clip.duration for clip in clips), 3),
         "output_duration_is_shorter_by_fades": options.use_fades,

@@ -22,6 +22,7 @@ from clipweave.selection import (
     order_clips,
     orientation_ok,
     select_unique,
+    select_unique_segments,
     select_smart_sequences,
     target_similarity,
 )
@@ -112,6 +113,7 @@ class ConfigTests(unittest.TestCase):
             smart_max_known_ratio=0.4,
             smart_min_segment_duration=3.0,
             smart_reorder_segments=False,
+            smart_dedupe_segments=False,
         )
 
         options = options_from_args(args)
@@ -129,6 +131,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.smart_max_known_ratio, 0.4)
         self.assertEqual(options.smart_min_segment_duration, 3.0)
         self.assertFalse(options.smart_reorder_segments)
+        self.assertFalse(options.smart_dedupe_segments)
 
 
 class SelectionTests(unittest.TestCase):
@@ -258,9 +261,21 @@ class SelectionTests(unittest.TestCase):
         fresh = clip("fresh.mp4", start=VFADE, end=V2, brightness=10, sequence=(V4, V4, V4))
         options = BuildOptions(input_dir=Path("."), output=None, smart_editing=True)
 
-        selected = order_and_smart_edit([base, repeated, fresh], options)
+        selected, counts = order_and_smart_edit([base, repeated, fresh], options)
 
         self.assertEqual([item.path.name for item in selected], ["base.mp4", "fresh.mp4", "repeated.mp4"])
+        self.assertEqual(counts["after_smart_trim"], 3)
+        self.assertEqual(counts["after_smart_dedupe"], 3)
+
+    def test_post_trim_segment_dedupe_ignores_file_hash(self) -> None:
+        """Post-trim dedupe removes visual repeats without dropping every segment from one source."""
+        first = clip("same.mp4", sequence=(V1, V1, V1), duration=3.0)
+        repeated = clip("same.mp4", sequence=(V1, VMIX, V1), duration=3.0)
+        fresh_same_file = clip("same.mp4", sequence=(V2, V2, V2), duration=3.0)
+
+        selected = select_unique_segments([first, repeated, fresh_same_file], threshold=0.94, max_known_ratio=0.55)
+
+        self.assertEqual([item.sequence[0].tolist() for item in selected], [V1.tolist(), V2.tolist()])
 
 
 class RenderTests(unittest.TestCase):

@@ -181,6 +181,23 @@ def select_smart_sequences(
     return selected
 
 
+def select_unique_segments(
+    clips: list[Clip],
+    threshold: float,
+    max_known_ratio: float,
+) -> list[Clip]:
+    """Remove duplicated trimmed segments without collapsing segments from the same file."""
+    selected: list[Clip] = []
+    known_frames: list[np.ndarray] = []
+    for clip in clips:
+        ratio = known_frame_ratio(clip, known_frames, threshold)
+        if ratio <= max_known_ratio:
+            selected_clip = replace(clip, known_frame_ratio=ratio)
+            selected.append(selected_clip)
+            known_frames.extend(selected_clip.sequence or (selected_clip.start, selected_clip.mid, selected_clip.end))
+    return selected
+
+
 def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
     """Order clips by filename, duration, or greedy visual continuity."""
     if mode == "name":

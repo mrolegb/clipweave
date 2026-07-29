@@ -83,12 +83,15 @@ class OptionsPanel(QGroupBox):
         self.fade_transition_check = QCheckBox("Use fade transitions")
         self.fade_transition_check.setChecked(True)
         self.smart_editing_check = QCheckBox("Smart editing")
+        self.smart_dedupe_segments_check = QCheckBox("Dedupe smart segments")
+        self.smart_dedupe_segments_check.setChecked(True)
         self.smart_reorder_segments_check = QCheckBox("Reorder smart segments")
         self.smart_reorder_segments_check.setChecked(True)
         self.keep_work_check = QCheckBox("Keep temporary files")
         style_checkbox(self.keep_audio_check)
         style_checkbox(self.fade_transition_check)
         style_checkbox(self.smart_editing_check)
+        style_checkbox(self.smart_dedupe_segments_check)
         style_checkbox(self.smart_reorder_segments_check)
         style_checkbox(self.keep_work_check)
 
@@ -118,6 +121,7 @@ class OptionsPanel(QGroupBox):
         self._set_option_enabled("keep_audio", audio_possible)
         self._set_option_enabled("smart_max_known_ratio", self.smart_editing_check.isChecked())
         self._set_option_enabled("smart_min_segment_duration", self.smart_editing_check.isChecked())
+        self._set_option_enabled("smart_dedupe_segments", self.smart_editing_check.isChecked())
         self._set_option_enabled("smart_reorder_segments", self.smart_editing_check.isChecked())
 
         if not audio_possible:
@@ -132,12 +136,14 @@ class OptionsPanel(QGroupBox):
         self._set_option_enabled("fade_transition", fade_available)
         self._set_option_enabled("smart_max_known_ratio", self.smart_editing_check.isChecked())
         self._set_option_enabled("smart_min_segment_duration", self.smart_editing_check.isChecked())
+        self._set_option_enabled("smart_dedupe_segments", self.smart_editing_check.isChecked())
         self._set_option_enabled("smart_reorder_segments", self.smart_editing_check.isChecked())
 
     def apply_smart_rules(self, enabled: bool) -> None:
         """Disable smart editing details until smart editing is active."""
         self._set_option_enabled("smart_max_known_ratio", enabled)
         self._set_option_enabled("smart_min_segment_duration", enabled)
+        self._set_option_enabled("smart_dedupe_segments", enabled)
         self._set_option_enabled("smart_reorder_segments", enabled)
 
     def _set_option_enabled(self, key: str, enabled: bool) -> None:
@@ -162,5 +168,6 @@ class OptionsPanel(QGroupBox):
         self.option_cells["keep_audio"] = add_option(self.option_grid, 11, "Keep audio", self.keep_audio_check, "Use source audio instead of rendering a silent montage.")
         self.option_cells["fade_transition"] = add_option(self.option_grid, 12, "Fade transitions", self.fade_transition_check, "Blend clips visually. Disabled automatically when audio is kept.")
         self.option_cells["smart_editing"] = add_option(self.option_grid, 13, "Smart editing", self.smart_editing_check, "Trim or skip clips that mostly repeat earlier sampled frames.")
-        self.option_cells["smart_reorder_segments"] = add_option(self.option_grid, 14, "Reorder smart segments", self.smart_reorder_segments_check, "Sort salvaged segments visually after smart editing.")
-        self.option_cells["keep_work"] = add_option(self.option_grid, 15, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
+        self.option_cells["smart_dedupe_segments"] = add_option(self.option_grid, 14, "Dedupe smart segments", self.smart_dedupe_segments_check, "Run a second visual duplicate pass after trimming.")
+        self.option_cells["smart_reorder_segments"] = add_option(self.option_grid, 15, "Reorder smart segments", self.smart_reorder_segments_check, "Sort salvaged segments visually after smart editing.")
+        self.option_cells["keep_work"] = add_option(self.option_grid, 16, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")

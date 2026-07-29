@@ -51,6 +51,12 @@ def parse_args() -> argparse.Namespace:
         dest="smart_reorder_segments",
         help="Keep smart-edited segments in their original clip order instead of reordering them visually.",
     )
+    parser.add_argument(
+        "--no-smart-dedupe-segments",
+        action="store_false",
+        dest="smart_dedupe_segments",
+        help="Skip the post-trim visual duplicate pass over smart-edited segments.",
+    )
     return parser.parse_args()
 
 
@@ -82,6 +88,7 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         smart_max_known_ratio=args.smart_max_known_ratio,
         smart_min_segment_duration=args.smart_min_segment_duration,
         smart_reorder_segments=args.smart_reorder_segments,
+        smart_dedupe_segments=args.smart_dedupe_segments,
     )
 
 

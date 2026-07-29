@@ -238,6 +238,9 @@ Important parameters:
 - `--no-smart-reorder-segments`
   By default, smart editing runs a second visual ordering pass after segment trimming. This flag keeps salvaged segments in the first-pass clip order.
 
+- `--no-smart-dedupe-segments`
+  By default, smart editing runs a second visual duplicate pass after segment trimming. This flag keeps all salvaged segments.
+
 - `--order visual|name|duration`  
   `visual` orders clips by similarity between the end of one clip and the start of the next.
 

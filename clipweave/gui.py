@@ -94,6 +94,7 @@ class MainWindow(QMainWindow):
         self.keep_audio_check = panel.keep_audio_check
         self.fade_transition_check = panel.fade_transition_check
         self.smart_editing_check = panel.smart_editing_check
+        self.smart_dedupe_segments_check = panel.smart_dedupe_segments_check
         self.smart_reorder_segments_check = panel.smart_reorder_segments_check
         self.keep_work_check = panel.keep_work_check
 
@@ -166,6 +167,7 @@ class MainWindow(QMainWindow):
             smart_editing=self.smart_editing_check.isChecked(),
             smart_max_known_ratio=self.smart_max_known_ratio_spin.value(),
             smart_min_segment_duration=self.smart_min_segment_duration_spin.value(),
+            smart_dedupe_segments=self.smart_dedupe_segments_check.isChecked(),
             smart_reorder_segments=self.smart_reorder_segments_check.isChecked(),
         )
 
