@@ -6,14 +6,13 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt, QObject, QThread, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
-    QFormLayout,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -32,6 +31,14 @@ from PySide6.QtWidgets import (
 
 from .config import BuildOptions
 from .pipeline import build_video
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def resource_path(relative_path: str) -> Path:
+    """Resolve a bundled asset path for source and PyInstaller builds."""
+    base = Path(getattr(sys, "_MEIPASS", PROJECT_ROOT))
+    return base / relative_path
 
 
 def ffmpeg_available() -> bool:
@@ -65,37 +72,46 @@ class MainWindow(QMainWindow):
         self.thread: QThread | None = None
         self.worker: BuildWorker | None = None
         self.setWindowTitle("Clipweave")
-        self.setMinimumSize(820, 720)
+        self.setMinimumSize(980, 820)
+        icon_path = resource_path("assets/clipweave-icon.png")
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self._build_ui()
-        self._set_idle_state()
+        self._set_idle_state("Choose input media, then start a build.")
 
     def _build_ui(self) -> None:
         """Create controls and layout for the main window."""
         root = QWidget()
         layout = QVBoxLayout(root)
+        layout.setSpacing(10)
 
-        title = QLabel("Clipweave")
-        title.setStyleSheet("font-size: 28px; font-weight: 700;")
-        subtitle = QLabel("Build local video montages and image slideshows with visual ordering.")
-        subtitle.setStyleSheet("color: #53606b;")
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        self.banner_label = QLabel()
+        self.banner_label.setMinimumHeight(150)
+        self.banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.banner_label.setStyleSheet("background: #15191d; border-radius: 6px;")
+        self.banner_pixmap = QPixmap(str(resource_path("assets/clipweave-banner.png")))
+        self._apply_banner_pixmap()
+        layout.addWidget(self.banner_label)
 
         paths = QGroupBox("Paths")
         path_grid = QGridLayout(paths)
+        path_grid.setColumnStretch(1, 1)
         self.input_edit = QLineEdit()
         self.target_edit = QLineEdit()
         self.output_edit = QLineEdit()
-        path_grid.addWidget(QLabel("Input folder"), 0, 0)
+        self._style_field(self.input_edit)
+        self._style_field(self.target_edit)
+        self._style_field(self.output_edit)
+        path_grid.addWidget(self._label_with_hint("Input folder", "Folder with source videos, images, or mixed media."), 0, 0)
         path_grid.addWidget(self.input_edit, 0, 1)
         path_grid.addWidget(self._browse_button(self.choose_input), 0, 2)
-        path_grid.addWidget(QLabel("Target"), 1, 0)
+        path_grid.addWidget(self._label_with_hint("Target", "Optional reference file used to reject visually distant media."), 1, 0)
         path_grid.addWidget(self.target_edit, 1, 1)
         target_actions = QHBoxLayout()
         target_actions.addWidget(self._browse_button(self.choose_target))
         target_actions.addWidget(self._small_button("Clear", self.target_edit.clear))
         path_grid.addLayout(target_actions, 1, 2)
-        path_grid.addWidget(QLabel("Output"), 2, 0)
+        path_grid.addWidget(self._label_with_hint("Output", "Optional MP4 path. Empty means output goes into the input folder."), 2, 0)
         path_grid.addWidget(self.output_edit, 2, 1)
         output_actions = QHBoxLayout()
         output_actions.addWidget(self._browse_button(self.choose_output))
@@ -104,7 +120,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(paths)
 
         options = QGroupBox("Options")
-        form = QFormLayout(options)
+        option_grid = QGridLayout(options)
+        option_grid.setHorizontalSpacing(18)
+        option_grid.setVerticalSpacing(12)
         self.media_combo = self._combo(["videos", "images", "mixed"])
         self.media_combo.currentTextChanged.connect(self.on_media_changed)
         self.orientation_combo = self._combo(["vertical", "horizontal", "any"])
@@ -118,22 +136,23 @@ class MainWindow(QMainWindow):
         self.crf_spin = QSpinBox()
         self.crf_spin.setRange(0, 35)
         self.crf_spin.setValue(16)
+        self._style_field(self.crf_spin)
         self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
         self.keep_work_check = QCheckBox("Keep temporary files")
 
-        form.addRow("Media", self.media_combo)
-        form.addRow("Orientation", self.orientation_combo)
-        form.addRow("Audio", self.audio_combo)
-        form.addRow("Transition", self.transition_combo)
-        form.addRow("Order", self.order_combo)
-        form.addRow("Image duration, sec", self.image_duration_spin)
-        form.addRow("Max duration, sec (0 = no limit)", self.max_duration_spin)
-        form.addRow("Target threshold", self.target_threshold_spin)
-        form.addRow("Duplicate threshold", self.duplicate_threshold_spin)
-        form.addRow("CRF", self.crf_spin)
-        form.addRow("Preset", self.preset_combo)
-        form.addRow("", self.keep_work_check)
+        self._add_option(option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
+        self._add_option(option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
+        self._add_option(option_grid, 2, "Audio", self.audio_combo, "Keep source audio or render a silent montage.")
+        self._add_option(option_grid, 3, "Transition", self.transition_combo, "Use visual fades or hard cuts between clips.")
+        self._add_option(option_grid, 4, "Order", self.order_combo, "Sort by visual continuity, filename, or duration.")
+        self._add_option(option_grid, 5, "Image duration, sec", self.image_duration_spin, "How long each still image stays on screen.")
+        self._add_option(option_grid, 6, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
+        self._add_option(option_grid, 7, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
+        self._add_option(option_grid, 8, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
+        self._add_option(option_grid, 9, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
+        self._add_option(option_grid, 10, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
+        self._add_option(option_grid, 11, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
         layout.addWidget(options)
 
         actions = QHBoxLayout()
@@ -153,27 +172,87 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel()
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        self.log.setPlaceholderText("Build manifest and errors will appear here.")
         self.log.setMinimumHeight(180)
         layout.addWidget(self.status_label)
         layout.addWidget(self.log, 1)
         self.setCentralWidget(root)
 
+    def resizeEvent(self, event) -> None:
+        """Keep the banner crisp when the window changes size."""
+        super().resizeEvent(event)
+        self._apply_banner_pixmap()
+
+    def _apply_banner_pixmap(self) -> None:
+        """Scale the README banner into the GUI header."""
+        if not hasattr(self, "banner_label") or not hasattr(self, "banner_pixmap"):
+            return
+        if self.banner_pixmap.isNull():
+            self.banner_label.setText("Clipweave")
+            self.banner_label.setStyleSheet("font-size: 28px; font-weight: 700;")
+            return
+        size = self.banner_label.size()
+        if size.width() <= 1:
+            size.setWidth(940)
+        size.setHeight(max(size.height(), 150))
+        scaled = self.banner_pixmap.scaled(
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self.banner_label.setPixmap(scaled)
+
+    def _label_with_hint(self, title: str, hint: str) -> QWidget:
+        """Create a field label with a visible short explanation."""
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        label = QLabel(title)
+        label.setStyleSheet("font-weight: 600;")
+        help_label = QLabel(hint)
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("color: #7d8b98; font-size: 11px;")
+        layout.addWidget(label)
+        layout.addWidget(help_label)
+        return box
+
+    def _add_option(self, grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> None:
+        """Place one explained option into the two-column options grid."""
+        cell = QWidget()
+        layout = QVBoxLayout(cell)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addWidget(self._label_with_hint(title, hint))
+        layout.addWidget(widget)
+        row = index // 2
+        column = index % 2
+        grid.addWidget(cell, row, column)
+        grid.setColumnStretch(column, 1)
+
+    def _style_field(self, widget: QWidget) -> None:
+        """Apply common sizing to input controls so they remain easy to use."""
+        widget.setMinimumHeight(32)
+
     def _browse_button(self, callback) -> QPushButton:
         """Create a compact browse button wired to a file/folder picker callback."""
         button = QPushButton("Browse")
         button.clicked.connect(callback)
+        button.setMinimumHeight(32)
         return button
 
     def _small_button(self, text: str, callback) -> QPushButton:
         """Create a compact utility button."""
         button = QPushButton(text)
         button.clicked.connect(callback)
+        button.setMinimumHeight(32)
         return button
 
     def _combo(self, values: list[str]) -> QComboBox:
         """Create a combo box from a list of string values."""
         combo = QComboBox()
         combo.addItems(values)
+        self._style_field(combo)
         return combo
 
     def _double_spin(self, minimum: float, maximum: float, value: float, decimals: int) -> QDoubleSpinBox:
@@ -182,6 +261,7 @@ class MainWindow(QMainWindow):
         spin.setRange(minimum, maximum)
         spin.setDecimals(decimals)
         spin.setValue(value)
+        self._style_field(spin)
         return spin
 
     def choose_input(self) -> None:
@@ -291,12 +371,12 @@ class MainWindow(QMainWindow):
     def _set_busy_state(self) -> None:
         """Disable build controls while a worker is active."""
         self.build_button.setEnabled(False)
-        self.status_label.setText("Working...")
+        self.status_label.setText("Building...")
 
-    def _set_idle_state(self) -> None:
+    def _set_idle_state(self, message: str = "") -> None:
         """Restore controls when no build is active."""
         self.build_button.setEnabled(True)
-        self.status_label.setText("Ready.")
+        self.status_label.setText(message)
 
 
 def main() -> None:

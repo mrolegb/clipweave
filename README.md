@@ -85,7 +85,7 @@ To package the GUI as a local app, install PyInstaller and build per platform:
 
 ```powershell
 python -m pip install pyinstaller
-pyinstaller --onefile --windowed clipweave-gui.py
+pyinstaller --onefile --windowed --add-data "assets;assets" clipweave-gui.py
 ```
 
 For a CLI binary:
@@ -95,6 +95,7 @@ pyinstaller --onefile clipweave.py
 ```
 
 FFmpeg is not bundled yet; installed binaries still expect `ffmpeg` and `ffprobe` in `PATH`.
+On Linux/macOS, use `--add-data "assets:assets"` instead.
 
 ## Video Montage
 

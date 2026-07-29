@@ -41,7 +41,7 @@ gui:
 
 build-gui:
 	$(PIP) install pyinstaller
-	$(PY) -m PyInstaller --onefile --windowed clipweave-gui.py
+	$(PY) -m PyInstaller --onefile --windowed --add-data "assets:assets" clipweave-gui.py
 
 slideshow:
 	$(PY) clipweave.py "$(INPUT)" --media images --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
