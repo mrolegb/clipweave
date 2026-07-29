@@ -1,6 +1,6 @@
 # Clipweave
 
-![Clipweave banner](assets/clipweave-banner.png)
+![Clipweave banner](assets/clipweave-app-banner.png)
 
 Clipweave assembles a folder of short videos or images into one coherent montage. It filters by orientation and size, skips obvious duplicates, orders clips by visual continuity, and writes a browser/player-friendly H.264 MP4.
 
