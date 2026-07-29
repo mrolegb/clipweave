@@ -20,6 +20,7 @@ from .selection import (
 
 
 def discover_clips(input_dir: Path, options: BuildOptions) -> list[Clip]:
+    """Scan the input directory and build Clip descriptors for eligible media."""
     clips = []
     for path in sorted(input_dir.iterdir()):
         if not path.is_file():
@@ -38,6 +39,7 @@ def discover_clips(input_dir: Path, options: BuildOptions) -> list[Clip]:
 
 
 def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], int]:
+    """Apply orientation, size, duplicate, ordering, and duration filters."""
     clips = discover_clips(options.resolved_input_dir, options)
     if not clips:
         raise RuntimeError("No readable clips match the requested orientation.")
@@ -58,6 +60,7 @@ def render_video(
     output: Path,
     options: BuildOptions,
 ) -> list[Transition]:
+    """Normalize selected media, render the final output, and clean intermediates."""
     temp_root = options.work_dir or Path(tempfile.mkdtemp(prefix="clipweave_"))
     temp_root.mkdir(parents=True, exist_ok=True)
     try:
@@ -91,6 +94,7 @@ def build_manifest(
     candidate_count: int,
     transitions: list[Transition],
 ) -> dict:
+    """Build the JSON-serializable manifest written next to the output video."""
     return {
         "input_dir": str(options.resolved_input_dir),
         "output": str(options.output_path),
@@ -113,6 +117,7 @@ def build_manifest(
 
 
 def build_video(options: BuildOptions) -> dict:
+    """Run the full montage pipeline and write output video plus manifest."""
     clips, dimensions, candidate_count = select_clips(options)
     output = options.output_path
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -7,6 +7,7 @@ from .models import Clip
 
 
 def orientation_ok(clip: Clip, orientation: str) -> bool:
+    """Check whether a clip matches the requested orientation filter."""
     if orientation == "vertical":
         return clip.height > clip.width
     if orientation == "horizontal":
@@ -15,6 +16,7 @@ def orientation_ok(clip: Clip, orientation: str) -> bool:
 
 
 def choose_dimensions(clips: list[Clip], aspect_tolerance: float) -> tuple[int, int]:
+    """Pick the target output size from the most common matching source size."""
     dimensions = Counter(clip.dimensions for clip in clips)
     best_dimensions, best_count = dimensions.most_common(1)[0]
     if best_count >= 3:
@@ -31,6 +33,7 @@ def choose_dimensions(clips: list[Clip], aspect_tolerance: float) -> tuple[int, 
 
 
 def is_extension_duplicate(shorter: Clip, longer: Clip, threshold: float) -> bool:
+    """Detect likely Grok extension duplicates where a short clip repeats a long one."""
     if longer.duration < 28 or shorter.duration >= 28:
         return False
     return max(
@@ -41,6 +44,7 @@ def is_extension_duplicate(shorter: Clip, longer: Clip, threshold: float) -> boo
 
 
 def select_unique(clips: list[Clip], duplicate_threshold: float) -> list[Clip]:
+    """Remove exact duplicates and strong visual duplicates, preferring longer clips."""
     by_hash: dict[str, Clip] = {}
     for clip in clips:
         by_hash.setdefault(clip.file_hash, clip)
@@ -61,6 +65,7 @@ def select_unique(clips: list[Clip], duplicate_threshold: float) -> list[Clip]:
 
 
 def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
+    """Order clips by filename, duration, or greedy visual continuity."""
     if mode == "name":
         return sorted(clips, key=lambda clip: clip.path.name)
     if mode == "duration":
@@ -86,6 +91,7 @@ def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
 
 
 def apply_duration_limit(clips: list[Clip], max_duration: float | None) -> list[Clip]:
+    """Keep whole clips while staying as close as possible to the duration limit."""
     if not max_duration:
         return clips
 

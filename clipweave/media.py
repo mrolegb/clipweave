@@ -12,10 +12,12 @@ from .models import VideoMeta
 
 
 def run(cmd: list[str]) -> None:
+    """Run a subprocess and fail fast when FFmpeg/FFprobe returns an error."""
     subprocess.run(cmd, check=True)
 
 
 def probe_video(path: Path) -> VideoMeta:
+    """Read width, height, and duration from the first video stream."""
     proc = subprocess.run(
         [
             "ffprobe",
@@ -43,6 +45,7 @@ def probe_video(path: Path) -> VideoMeta:
 
 
 def file_sha1(path: Path) -> str:
+    """Hash a source file so exact duplicates can be ignored."""
     digest = hashlib.sha1()
     with path.open("rb") as file:
         for chunk in iter(lambda: file.read(1024 * 1024), b""):
@@ -50,7 +53,8 @@ def file_sha1(path: Path) -> str:
     return digest.hexdigest()
 
 
-def frame_at(path: Path, fraction: float):
+def frame_at(path: Path, fraction: float) -> np.ndarray | None:
+    """Read a frame at a relative position from a video file."""
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         return None
@@ -61,7 +65,8 @@ def frame_at(path: Path, fraction: float):
     return frame if ok else None
 
 
-def read_image(path: Path):
+def read_image(path: Path) -> np.ndarray | None:
+    """Read an image from paths that may contain non-ASCII characters."""
     data = np.fromfile(str(path), dtype=np.uint8)
     if data.size == 0:
         return None

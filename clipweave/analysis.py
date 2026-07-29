@@ -9,7 +9,8 @@ from .media import file_sha1, frame_at, probe_video, read_image
 from .models import Clip, VideoMeta
 
 
-def frame_vector(frame) -> np.ndarray:
+def frame_vector(frame: np.ndarray) -> np.ndarray:
+    """Convert a frame into a normalized grayscale vector for similarity checks."""
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     small = cv2.resize(gray, (64, 96), interpolation=cv2.INTER_AREA).astype("float32").reshape(-1)
     small -= small.mean()
@@ -17,10 +18,12 @@ def frame_vector(frame) -> np.ndarray:
 
 
 def correlation(left: np.ndarray, right: np.ndarray) -> float:
+    """Return cosine-like similarity for already normalized frame vectors."""
     return float(np.dot(left, right))
 
 
 def read_clip(path: Path) -> Clip | None:
+    """Read a video and sample start/middle/end frames into a Clip descriptor."""
     meta = probe_video(path)
     if not meta.width or not meta.height or meta.duration <= 0:
         return None
@@ -43,6 +46,7 @@ def read_clip(path: Path) -> Clip | None:
 
 
 def read_image_clip(path: Path, duration: float) -> Clip | None:
+    """Read an image as a still Clip with the requested slideshow duration."""
     frame = read_image(path)
     if frame is None:
         return None

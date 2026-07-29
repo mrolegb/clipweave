@@ -6,6 +6,8 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class BuildOptions:
+    """Typed configuration for one Clipweave render run."""
+
     input_dir: Path
     output: Path | None
     orientation: str = "vertical"
@@ -26,16 +28,20 @@ class BuildOptions:
 
     @property
     def resolved_input_dir(self) -> Path:
+        """Absolute input directory used in manifests and file discovery."""
         return self.input_dir.resolve()
 
     @property
     def output_path(self) -> Path:
+        """Explicit output path, or the default output inside the input folder."""
         return self.output or (self.resolved_input_dir / f"clipweave_{self.media}_{self.orientation}.mp4")
 
     @property
     def keep_audio(self) -> bool:
+        """Whether normalized video clips should preserve audio."""
         return self.audio == "keep"
 
     @property
     def use_fades(self) -> bool:
+        """Fade transitions are enabled only for silent output."""
         return self.transition == "fade" and not self.keep_audio

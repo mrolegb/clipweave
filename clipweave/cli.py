@@ -9,6 +9,7 @@ from .pipeline import build_video
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI flags into argparse's raw namespace."""
     parser = argparse.ArgumentParser(description="Assemble a coherent montage from a folder of clips.")
     parser.add_argument("input_dir", type=Path)
     parser.add_argument("--orientation", choices=["vertical", "horizontal", "any"], default="vertical")
@@ -31,6 +32,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def options_from_args(args: argparse.Namespace) -> BuildOptions:
+    """Convert parsed CLI arguments into the typed pipeline configuration."""
     return BuildOptions(
         input_dir=args.input_dir,
         output=args.output,
@@ -53,5 +55,6 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
 
 
 def main() -> None:
+    """CLI entrypoint: build the video and print the manifest."""
     manifest = build_video(options_from_args(parse_args()))
     print(json.dumps(manifest, ensure_ascii=False, indent=2))

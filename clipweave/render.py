@@ -9,6 +9,7 @@ from .models import Clip, Transition
 
 
 def fade_duration(prev: Clip, nxt: Clip, min_fade: float, max_fade: float) -> float:
+    """Choose a shorter fade when adjacent frames are already visually similar."""
     similarity = correlation(prev.end, nxt.start)
     if similarity >= 0.90:
         return min_fade
@@ -27,6 +28,7 @@ def normalize_clip(
     crf: int,
     preset: str,
 ) -> None:
+    """Transcode a video clip into the common output size and codec settings."""
     width, height = dimensions
     command = [
         "ffmpeg",
@@ -69,6 +71,7 @@ def normalize_image(
     crf: int,
     preset: str,
 ) -> None:
+    """Convert a still image into a fixed-duration video segment."""
     width, height = dimensions
     run(
         [
@@ -111,6 +114,7 @@ def normalize_source(
     crf: int,
     preset: str,
 ) -> None:
+    """Normalize either a video clip or an image clip into a temporary MP4."""
     if clip.media_type == "image":
         normalize_image(clip.path, dst, dimensions, clip.duration, crf, preset)
         return
@@ -118,6 +122,7 @@ def normalize_source(
 
 
 def concat_plain(clips: list[Path], output: Path, concat_file: Path) -> None:
+    """Join normalized clips with hard cuts using FFmpeg concat demuxer."""
     concat_file.write_text("".join(f"file '{clip.as_posix()}'\n" for clip in clips), encoding="utf-8")
     run(
         [
@@ -148,6 +153,7 @@ def concat_xfade(
     crf: int,
     preset: str,
 ) -> list[Transition]:
+    """Join normalized clips with visual fade transitions and return manifest data."""
     if len(normalized_files) == 1:
         shutil.copy2(normalized_files[0], output)
         return []
