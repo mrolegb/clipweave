@@ -17,6 +17,7 @@ from .selection import (
     order_clips,
     orientation_ok,
     select_unique,
+    select_smart_sequences,
     target_similarity,
 )
 
@@ -32,7 +33,8 @@ def discover_clips(input_dir: Path, options: BuildOptions) -> list[Clip]:
         suffix = path.suffix.lower()
         clip = None
         if options.media in {"videos", "mixed"} and suffix in VIDEO_EXTS:
-            clip = read_clip(path)
+            sample_rate = options.smart_sample_rate if options.smart_editing else 0.0
+            clip = read_clip(path, sample_rate)
         elif options.media in {"images", "mixed"} and suffix in IMAGE_EXTS:
             clip = read_image_clip(path, options.image_duration)
         if clip and orientation_ok(clip, options.orientation):
@@ -71,6 +73,9 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
     same_size = [clip for clip in clips if clip.dimensions == dimensions]
     selected = select_unique(same_size, options.duplicate_threshold)
     selected = order_clips(selected, options.order)
+    if options.smart_editing:
+        selected = select_smart_sequences(selected, options.smart_threshold, options.smart_max_known_ratio)
+    smart_count = len(selected)
     selected = apply_duration_limit(selected, options.max_duration)
     if not selected:
         raise RuntimeError("No clips selected after filtering.")
@@ -78,6 +83,7 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
         "after_orientation": len(discovered),
         "after_target_filter": len(clips),
         "after_size_filter": len(same_size),
+        "after_smart_filter": smart_count,
     }
     return selected, dimensions, counts, target
 
@@ -132,12 +138,17 @@ def build_manifest(
         "dimensions": {"width": dimensions[0], "height": dimensions[1]},
         "audio": options.audio,
         "image_duration": options.image_duration,
+        "smart_editing": options.smart_editing,
+        "smart_sample_rate": options.smart_sample_rate if options.smart_editing else None,
+        "smart_threshold": options.smart_threshold if options.smart_editing else None,
+        "smart_max_known_ratio": options.smart_max_known_ratio if options.smart_editing else None,
         "target": str(options.target) if options.target else None,
         "target_threshold": options.target_threshold if options.target else None,
         "transition": options.transition if not options.keep_audio else "cut",
         "source_candidates": candidate_count["after_size_filter"],
         "source_candidates_after_orientation": candidate_count["after_orientation"],
         "source_candidates_after_target_filter": candidate_count["after_target_filter"],
+        "source_candidates_after_smart_filter": candidate_count["after_smart_filter"] if options.smart_editing else None,
         "selected_clips_count": len(clips),
         "selected_clips_duration_sum": round(sum(clip.duration for clip in clips), 3),
         "output_duration_is_shorter_by_fades": options.use_fades,
@@ -147,6 +158,7 @@ def build_manifest(
                 "duration": round(clip.duration, 3),
                 "media_type": clip.media_type,
                 "target_similarity": round(target_similarity(clip, target), 4) if target else None,
+                "known_frame_ratio": round(clip.known_frame_ratio, 4) if clip.known_frame_ratio is not None else None,
             }
             for clip in clips
         ],

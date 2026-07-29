@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .media import file_sha1, frame_at, probe_video, read_image
+from .media import file_sha1, frames_at, probe_video, read_image
 from .models import Clip, VideoMeta
 
 
@@ -22,26 +22,48 @@ def correlation(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.dot(left, right))
 
 
-def read_clip(path: Path) -> Clip | None:
+def sequence_fractions(duration: float, sample_rate: float) -> list[float]:
+    """Choose frame positions for sequence-level visual duplicate checks."""
+    if sample_rate <= 0:
+        return [0.04, 0.50, 0.96]
+    count = max(3, min(120, int(duration * sample_rate) + 1))
+    if count == 1:
+        return [0.50]
+    return [0.02 + (0.96 * index / (count - 1)) for index in range(count)]
+
+
+def read_clip(path: Path, sequence_sample_rate: float = 0.0) -> Clip | None:
     """Read a video and sample start/middle/end frames into a Clip descriptor."""
     meta = probe_video(path)
     if not meta.width or not meta.height or meta.duration <= 0:
         return None
 
-    frames = [frame_at(path, fraction) for fraction in (0.04, 0.50, 0.96)]
+    frames = frames_at(path, [0.04, 0.50, 0.96])
     if any(frame is None for frame in frames):
         return None
 
     mid_gray = cv2.cvtColor(frames[1], cv2.COLOR_BGR2GRAY)
+    start_vector = frame_vector(frames[0])
+    mid_vector = frame_vector(frames[1])
+    end_vector = frame_vector(frames[2])
+    sequence = (start_vector, mid_vector, end_vector)
+    if sequence_sample_rate > 0:
+        sequence = tuple(
+            frame_vector(frame)
+            for frame in frames_at(path, sequence_fractions(meta.duration, sequence_sample_rate))
+            if frame is not None
+        )
+
     return Clip(
         path=path,
         meta=meta,
         file_hash=file_sha1(path),
-        start=frame_vector(frames[0]),
-        mid=frame_vector(frames[1]),
-        end=frame_vector(frames[2]),
+        start=start_vector,
+        mid=mid_vector,
+        end=end_vector,
         brightness=float(np.mean(mid_gray)),
         media_type="video",
+        sequence=sequence,
     )
 
 
@@ -66,4 +88,5 @@ def read_image_clip(path: Path, duration: float) -> Clip | None:
         end=vector,
         brightness=float(np.mean(gray)),
         media_type="image",
+        sequence=(vector,),
     )

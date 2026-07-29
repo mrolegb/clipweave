@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
+
+import numpy as np
 
 from .analysis import correlation
 from .models import Clip
@@ -82,6 +85,31 @@ def filter_by_target(clips: list[Clip], target: Clip | None, threshold: float) -
     if target is None:
         return clips
     return [clip for clip in clips if target_similarity(clip, target) >= threshold]
+
+
+def known_frame_ratio(clip: Clip, known_frames: list[np.ndarray], threshold: float) -> float:
+    """Return the share of a clip's sampled sequence already represented by known frames."""
+    sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+    if not sequence or not known_frames:
+        return 0.0
+    known_count = 0
+    for frame in sequence:
+        if max(correlation(frame, known) for known in known_frames) >= threshold:
+            known_count += 1
+    return known_count / len(sequence)
+
+
+def select_smart_sequences(clips: list[Clip], threshold: float, max_known_ratio: float) -> list[Clip]:
+    """Drop clips whose sampled frame sequence is mostly covered by earlier selections."""
+    selected: list[Clip] = []
+    known_frames: list[np.ndarray] = []
+    for clip in clips:
+        ratio = known_frame_ratio(clip, known_frames, threshold)
+        if ratio <= max_known_ratio:
+            selected_clip = replace(clip, known_frame_ratio=ratio)
+            selected.append(selected_clip)
+            known_frames.extend(selected_clip.sequence or (selected_clip.start, selected_clip.mid, selected_clip.end))
+    return selected
 
 
 def order_clips(clips: list[Clip], mode: str) -> list[Clip]:

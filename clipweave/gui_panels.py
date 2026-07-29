@@ -73,6 +73,7 @@ class OptionsPanel(QGroupBox):
         self.max_duration_spin = double_spin(0.0, 24 * 60 * 60, 0.0, 1)
         self.target_threshold_spin = double_spin(-1.0, 1.0, 0.35, 2)
         self.duplicate_threshold_spin = double_spin(-1.0, 1.0, 0.965, 3)
+        self.smart_max_known_ratio_spin = double_spin(0.0, 1.0, 0.55, 2)
         self.crf_spin = int_spin(0, 35, 16)
         self.preset_combo = combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
@@ -80,13 +81,16 @@ class OptionsPanel(QGroupBox):
         self.keep_audio_check = QCheckBox("Keep source audio")
         self.fade_transition_check = QCheckBox("Use fade transitions")
         self.fade_transition_check.setChecked(True)
+        self.smart_editing_check = QCheckBox("Smart editing")
         self.keep_work_check = QCheckBox("Keep temporary files")
         style_checkbox(self.keep_audio_check)
         style_checkbox(self.fade_transition_check)
+        style_checkbox(self.smart_editing_check)
         style_checkbox(self.keep_work_check)
 
         self.media_combo.currentTextChanged.connect(self.apply_media_rules)
         self.keep_audio_check.toggled.connect(self.apply_audio_rules)
+        self.smart_editing_check.toggled.connect(self.apply_smart_rules)
         self.option_cells: dict[str, QWidget] = {}
         self._populate()
         self.apply_media_rules(self.media_combo.currentText())
@@ -108,6 +112,7 @@ class OptionsPanel(QGroupBox):
 
         self._set_option_enabled("image_duration", images_possible)
         self._set_option_enabled("keep_audio", audio_possible)
+        self._set_option_enabled("smart_max_known_ratio", self.smart_editing_check.isChecked())
 
         if not audio_possible:
             self.keep_audio_check.setChecked(False)
@@ -119,6 +124,11 @@ class OptionsPanel(QGroupBox):
         if not fade_available:
             self.fade_transition_check.setChecked(False)
         self._set_option_enabled("fade_transition", fade_available)
+        self._set_option_enabled("smart_max_known_ratio", self.smart_editing_check.isChecked())
+
+    def apply_smart_rules(self, enabled: bool) -> None:
+        """Disable smart editing details until smart editing is active."""
+        self._set_option_enabled("smart_max_known_ratio", enabled)
 
     def _set_option_enabled(self, key: str, enabled: bool) -> None:
         """Enable or disable a whole option cell when the setting is not applicable."""
@@ -135,8 +145,10 @@ class OptionsPanel(QGroupBox):
         self.option_cells["max_duration"] = add_option(self.option_grid, 4, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
         self.option_cells["target_threshold"] = add_option(self.option_grid, 5, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
         self.option_cells["duplicate_threshold"] = add_option(self.option_grid, 6, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
-        self.option_cells["crf"] = add_option(self.option_grid, 7, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
-        self.option_cells["preset"] = add_option(self.option_grid, 8, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
+        self.option_cells["smart_max_known_ratio"] = add_option(self.option_grid, 7, "Smart max known ratio", self.smart_max_known_ratio_spin, "Drop clips above this already-seen frame ratio.")
+        self.option_cells["crf"] = add_option(self.option_grid, 8, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
+        self.option_cells["preset"] = add_option(self.option_grid, 9, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
         self.option_cells["keep_audio"] = add_option(self.option_grid, 10, "Keep audio", self.keep_audio_check, "Use source audio instead of rendering a silent montage.")
         self.option_cells["fade_transition"] = add_option(self.option_grid, 11, "Fade transitions", self.fade_transition_check, "Blend clips visually. Disabled automatically when audio is kept.")
-        self.option_cells["keep_work"] = add_option(self.option_grid, 12, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
+        self.option_cells["smart_editing"] = add_option(self.option_grid, 12, "Smart editing", self.smart_editing_check, "Skip clips that mostly repeat earlier sampled frames.")
+        self.option_cells["keep_work"] = add_option(self.option_grid, 13, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")

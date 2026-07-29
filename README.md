@@ -107,7 +107,7 @@ The command line tool remains the primary interface, but Clipweave also includes
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 
@@ -140,7 +140,7 @@ When `main` is updated, GitHub Actions builds Windows CLI and GUI binaries and p
 The tests avoid real FFmpeg work and cover:
 
 - option parsing and default output behavior;
-- orientation, size, duplicate, target, ordering, and duration selection logic;
+- orientation, size, duplicate, target, smart editing, ordering, and duration selection logic;
 - fade duration decisions and manifest serialization;
 - media discovery behavior with mocked readers;
 - GUI field wiring, image-mode audio behavior, startup status, and asset resolution.
@@ -229,6 +229,12 @@ Important parameters:
 - `--duplicate-threshold FLOAT`  
   Default `0.965`. Lower values remove more near-duplicates; higher values keep more clips.
 
+- `--smart-editing`
+  Samples each video across its timeline and skips clips whose frames are mostly already represented by earlier selected clips. This keeps more of the final montage focused on new visual material.
+
+- `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, and `--smart-max-known-ratio FLOAT`
+  Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, and `0.55` maximum already-known frame ratio.
+
 - `--order visual|name|duration`  
   `visual` orders clips by similarity between the end of one clip and the start of the next.
 
@@ -245,6 +251,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - remove exact file duplicates;
 - remove strong visual duplicates;
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
+- optionally skip clips whose sampled frame sequence is mostly covered by earlier clips with `--smart-editing`;
 - order the selected clips by visual continuity;
 - shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally reject media below `--target-threshold` similarity to a target image/video.

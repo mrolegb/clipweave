@@ -87,10 +87,12 @@ class MainWindow(QMainWindow):
         self.max_duration_spin = panel.max_duration_spin
         self.target_threshold_spin = panel.target_threshold_spin
         self.duplicate_threshold_spin = panel.duplicate_threshold_spin
+        self.smart_max_known_ratio_spin = panel.smart_max_known_ratio_spin
         self.crf_spin = panel.crf_spin
         self.preset_combo = panel.preset_combo
         self.keep_audio_check = panel.keep_audio_check
         self.fade_transition_check = panel.fade_transition_check
+        self.smart_editing_check = panel.smart_editing_check
         self.keep_work_check = panel.keep_work_check
 
     def _build_actions(self) -> QHBoxLayout:
@@ -159,6 +161,8 @@ class MainWindow(QMainWindow):
             order=self.order_combo.currentText(),
             crf=self.crf_spin.value(),
             preset=self.preset_combo.currentText(),
+            smart_editing=self.smart_editing_check.isChecked(),
+            smart_max_known_ratio=self.smart_max_known_ratio_spin.value(),
         )
 
     def validate_options(self, options: BuildOptions) -> bool:

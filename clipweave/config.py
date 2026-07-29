@@ -27,6 +27,10 @@ class BuildOptions:
     order: str = "visual"
     crf: int = 16
     preset: str = "slow"
+    smart_editing: bool = False
+    smart_sample_rate: float = 1.0
+    smart_threshold: float = 0.94
+    smart_max_known_ratio: float = 0.55
 
     @property
     def resolved_input_dir(self) -> Path:

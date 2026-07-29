@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +32,8 @@ class Clip:
     end: np.ndarray
     brightness: float
     media_type: str = "video"
+    sequence: tuple[np.ndarray, ...] = field(default_factory=tuple)
+    known_frame_ratio: float | None = None
 
     @property
     def width(self) -> int:

@@ -18,9 +18,11 @@ from clipweave.selection import (
     choose_dimensions,
     filter_by_target,
     is_extension_duplicate,
+    known_frame_ratio,
     order_clips,
     orientation_ok,
     select_unique,
+    select_smart_sequences,
     target_similarity,
 )
 
@@ -50,6 +52,7 @@ def clip(
     end: np.ndarray = V1,
     brightness: float = 100.0,
     media_type: str = "video",
+    sequence: tuple[np.ndarray, ...] | None = None,
 ) -> Clip:
     """Create a small Clip fixture without reading media files."""
     return Clip(
@@ -61,6 +64,7 @@ def clip(
         end=end,
         brightness=brightness,
         media_type=media_type,
+        sequence=sequence or (start, mid, end),
     )
 
 
@@ -99,6 +103,10 @@ class ConfigTests(unittest.TestCase):
             order="name",
             crf=18,
             preset="medium",
+            smart_editing=True,
+            smart_sample_rate=2.0,
+            smart_threshold=0.93,
+            smart_max_known_ratio=0.4,
         )
 
         options = options_from_args(args)
@@ -110,6 +118,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.target_threshold, 0.5)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
+        self.assertTrue(options.smart_editing)
+        self.assertEqual(options.smart_sample_rate, 2.0)
+        self.assertEqual(options.smart_threshold, 0.93)
+        self.assertEqual(options.smart_max_known_ratio, 0.4)
 
 
 class SelectionTests(unittest.TestCase):
@@ -191,6 +203,18 @@ class SelectionTests(unittest.TestCase):
 
         self.assertEqual([item.path.name for item in apply_duration_limit(clips, 10)], ["a.mp4", "c.mp4"])
         self.assertEqual(apply_duration_limit(clips, None), clips)
+
+    def test_smart_sequence_dedupe_drops_mostly_known_clips(self) -> None:
+        """Smart editing skips clips whose sampled frames are mostly already present."""
+        first = clip("first.mp4", sequence=(V1, V2, V3))
+        repeated = clip("repeated.mp4", sequence=(V1, V2, VMIX))
+        fresh = clip("fresh.mp4", sequence=(VFADE, VFADE, VFADE))
+
+        self.assertEqual(known_frame_ratio(repeated, list(first.sequence), 0.94), 1.0)
+        selected = select_smart_sequences([first, repeated, fresh], threshold=0.94, max_known_ratio=0.55)
+
+        self.assertEqual([item.path.name for item in selected], ["first.mp4", "fresh.mp4"])
+        self.assertEqual(selected[0].known_frame_ratio, 0.0)
 
 
 class RenderTests(unittest.TestCase):

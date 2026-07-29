@@ -65,6 +65,21 @@ def frame_at(path: Path, fraction: float) -> np.ndarray | None:
     return frame if ok else None
 
 
+def frames_at(path: Path, fractions: list[float]) -> list[np.ndarray | None]:
+    """Read multiple frames from one video capture session."""
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        return [None for _ in fractions]
+    count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    frames = []
+    for fraction in fractions:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, min(count - 1, int(count * fraction))))
+        ok, frame = cap.read()
+        frames.append(frame if ok else None)
+    cap.release()
+    return frames
+
+
 def read_image(path: Path) -> np.ndarray | None:
     """Read an image from paths that may contain non-ASCII characters."""
     data = np.fromfile(str(path), dtype=np.uint8)
