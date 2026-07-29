@@ -69,6 +69,12 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(resource_path("assets/clipweave-icon.png").exists())
         self.assertFalse(self.window.windowIcon().isNull())
 
+    def test_options_are_roomy_enough(self) -> None:
+        """Main controls should not collapse into thin rows."""
+        self.assertGreaterEqual(self.window.minimumWidth(), 1120)
+        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 40)
+        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 40)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -72,7 +72,7 @@ class MainWindow(QMainWindow):
         self.thread: QThread | None = None
         self.worker: BuildWorker | None = None
         self.setWindowTitle("Clipweave")
-        self.setMinimumSize(980, 820)
+        self.setMinimumSize(1120, 860)
         icon_path = resource_path("assets/clipweave-icon.png")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
@@ -121,8 +121,8 @@ class MainWindow(QMainWindow):
 
         options = QGroupBox("Options")
         option_grid = QGridLayout(options)
-        option_grid.setHorizontalSpacing(18)
-        option_grid.setVerticalSpacing(12)
+        option_grid.setHorizontalSpacing(24)
+        option_grid.setVerticalSpacing(16)
         self.media_combo = self._combo(["videos", "images", "mixed"])
         self.media_combo.currentTextChanged.connect(self.on_media_changed)
         self.orientation_combo = self._combo(["vertical", "horizontal", "any"])
@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
         self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
         self.keep_work_check = QCheckBox("Keep temporary files")
+        self.keep_work_check.setMinimumHeight(40)
 
         self._add_option(option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
         self._add_option(option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
@@ -229,23 +230,24 @@ class MainWindow(QMainWindow):
         column = index % 2
         grid.addWidget(cell, row, column)
         grid.setColumnStretch(column, 1)
+        grid.setColumnMinimumWidth(column, 500)
 
     def _style_field(self, widget: QWidget) -> None:
         """Apply common sizing to input controls so they remain easy to use."""
-        widget.setMinimumHeight(32)
+        widget.setMinimumHeight(40)
 
     def _browse_button(self, callback) -> QPushButton:
         """Create a compact browse button wired to a file/folder picker callback."""
         button = QPushButton("Browse")
         button.clicked.connect(callback)
-        button.setMinimumHeight(32)
+        button.setMinimumHeight(40)
         return button
 
     def _small_button(self, text: str, callback) -> QPushButton:
         """Create a compact utility button."""
         button = QPushButton(text)
         button.clicked.connect(callback)
-        button.setMinimumHeight(32)
+        button.setMinimumHeight(40)
         return button
 
     def _combo(self, values: list[str]) -> QComboBox:
