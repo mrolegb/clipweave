@@ -12,6 +12,8 @@ help:
 	@echo   nmake /f Makefile.win install
 	@echo   nmake /f Makefile.win check
 	@echo   nmake /f Makefile.win run INPUT=D:\path\to\clips
+	@echo   nmake /f Makefile.win gui
+	@echo   nmake /f Makefile.win build-gui
 	@echo   nmake /f Makefile.win slideshow INPUT=D:\path\to\photos
 	@echo   nmake /f Makefile.win mixed INPUT=D:\path\to\media
 	@echo   nmake /f Makefile.win clean
@@ -28,6 +30,13 @@ check:
 
 run:
 	$(PY) clipweave.py "$(INPUT)" --media $(MEDIA) --orientation $(ORIENTATION)
+
+gui:
+	$(PY) clipweave-gui.py
+
+build-gui:
+	$(PIP) install pyinstaller
+	$(PY) -m PyInstaller --onefile --windowed clipweave-gui.py
 
 slideshow:
 	$(PY) clipweave.py "$(INPUT)" --media images --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION)

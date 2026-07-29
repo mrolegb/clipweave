@@ -14,6 +14,8 @@ Clipweave assembles a folder of short videos or images into one coherent montage
 python -m pip install opencv-python numpy
 ```
 
+The optional desktop UI also uses `PySide6`, included in `requirements.txt`.
+
 ## Project Layout
 
 ```text
@@ -68,6 +70,31 @@ mingw32-make -f Makefile.windows run INPUT=C:/path/to/clips
 ```
 
 All make targets expect `ffmpeg` and `ffprobe` to already be available in `PATH`.
+
+## Desktop UI
+
+The command line tool remains the primary interface, but the `feature/pyside-gui` branch also includes a small local desktop UI:
+
+```powershell
+python clipweave-gui.py
+```
+
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. Builds run in a background thread and print the final manifest into the log panel.
+
+To package the GUI as a local app, install PyInstaller and build per platform:
+
+```powershell
+python -m pip install pyinstaller
+pyinstaller --onefile --windowed clipweave-gui.py
+```
+
+For a CLI binary:
+
+```powershell
+pyinstaller --onefile clipweave.py
+```
+
+FFmpeg is not bundled yet; installed binaries still expect `ffmpeg` and `ffprobe` in `PATH`.
 
 ## Video Montage
 
