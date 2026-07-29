@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QSizePolicy,
     QSpinBox,
     QDoubleSpinBox,
     QVBoxLayout,
@@ -136,11 +137,12 @@ class MainWindow(QMainWindow):
         self.crf_spin = QSpinBox()
         self.crf_spin.setRange(0, 35)
         self.crf_spin.setValue(16)
-        self._style_field(self.crf_spin)
+        self._style_field(self.crf_spin, height=48, fixed=True)
+        self.crf_spin.setStyleSheet("QSpinBox { padding: 8px 10px; }")
         self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
         self.keep_work_check = QCheckBox("Keep temporary files")
-        self.keep_work_check.setMinimumHeight(40)
+        self._style_field(self.keep_work_check, height=48, fixed=True)
 
         self._add_option(option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
         self._add_option(option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
@@ -228,13 +230,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(widget)
         row = index // 2
         column = index % 2
+        cell.setMinimumHeight(88)
         grid.addWidget(cell, row, column)
         grid.setColumnStretch(column, 1)
         grid.setColumnMinimumWidth(column, 500)
 
-    def _style_field(self, widget: QWidget) -> None:
+    def _style_field(self, widget: QWidget, height: int = 40, fixed: bool = False) -> None:
         """Apply common sizing to input controls so they remain easy to use."""
-        widget.setMinimumHeight(40)
+        widget.setMinimumHeight(height)
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        if fixed:
+            widget.setFixedHeight(height)
 
     def _browse_button(self, callback) -> QPushButton:
         """Create a compact browse button wired to a file/folder picker callback."""
@@ -254,7 +260,8 @@ class MainWindow(QMainWindow):
         """Create a combo box from a list of string values."""
         combo = QComboBox()
         combo.addItems(values)
-        self._style_field(combo)
+        self._style_field(combo, height=48, fixed=True)
+        combo.setStyleSheet("QComboBox { padding: 8px 10px; }")
         return combo
 
     def _double_spin(self, minimum: float, maximum: float, value: float, decimals: int) -> QDoubleSpinBox:
@@ -263,7 +270,8 @@ class MainWindow(QMainWindow):
         spin.setRange(minimum, maximum)
         spin.setDecimals(decimals)
         spin.setValue(value)
-        self._style_field(spin)
+        self._style_field(spin, height=48, fixed=True)
+        spin.setStyleSheet("QDoubleSpinBox { padding: 8px 10px; }")
         return spin
 
     def choose_input(self) -> None:

@@ -72,8 +72,10 @@ class GuiTests(unittest.TestCase):
     def test_options_are_roomy_enough(self) -> None:
         """Main controls should not collapse into thin rows."""
         self.assertGreaterEqual(self.window.minimumWidth(), 1120)
-        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 40)
-        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 40)
+        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 48)
+        self.assertEqual(self.window.media_combo.height(), 48)
+        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 48)
+        self.assertEqual(self.window.image_duration_spin.height(), 48)
 
 
 if __name__ == "__main__":
