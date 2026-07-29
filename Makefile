@@ -10,13 +10,15 @@ IMAGE_DURATION ?= 3
 MAX_DURATION ?=
 OUTPUT ?=
 
-.PHONY: help venv install check run slideshow mixed clean
+.PHONY: help venv install check run gui build-gui slideshow mixed clean
 
 help:
 	@echo "Clipweave targets:"
 	@echo "  make install                         Create venv and install dependencies"
 	@echo "  make check                           Compile Python sources"
 	@echo "  make run INPUT=/path/to/clips         Build video montage"
+	@echo "  make gui                              Launch desktop UI"
+	@echo "  make build-gui                        Build GUI binary with PyInstaller"
 	@echo "  make slideshow INPUT=/path/to/photos  Build image slideshow"
 	@echo "  make mixed INPUT=/path/to/media       Build mixed media montage"
 	@echo "  make clean                           Remove local venv and caches"
@@ -29,10 +31,18 @@ install: venv
 	$(PIP) install -r requirements.txt
 
 check:
-	$(PYTHON) -m compileall .
+	$(PYTHON) -m compileall clipweave clipweave.py clipweave-gui.py tests
+	$(PYTHON) -m unittest discover -v
 
 run:
 	$(PY) clipweave.py "$(INPUT)" --media $(MEDIA) --orientation $(ORIENTATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+gui:
+	$(PY) clipweave-gui.py
+
+build-gui:
+	$(PIP) install pyinstaller
+	$(PY) -m PyInstaller --onefile --windowed --add-data "assets:assets" clipweave-gui.py
 
 slideshow:
 	$(PY) clipweave.py "$(INPUT)" --media images --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)

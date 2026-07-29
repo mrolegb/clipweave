@@ -11,12 +11,14 @@ IMAGE_DURATION ?= 3
 MAX_DURATION ?=
 OUTPUT ?=
 
-.PHONY: help venv install check run slideshow mixed clean
+.PHONY: help venv install check run gui build-gui slideshow mixed clean
 
 help:
 	@echo "Clipweave Windows GNU Make targets:"
 	@echo "  mingw32-make -f Makefile.windows install"
 	@echo "  mingw32-make -f Makefile.windows run INPUT=C:/path/to/clips"
+	@echo "  mingw32-make -f Makefile.windows gui"
+	@echo "  mingw32-make -f Makefile.windows build-gui"
 	@echo "  mingw32-make -f Makefile.windows slideshow INPUT=C:/path/to/photos"
 	@echo "  mingw32-make -f Makefile.windows mixed INPUT=C:/path/to/media"
 
@@ -28,10 +30,18 @@ install: venv
 	$(PIP) install -r requirements.txt
 
 check:
-	$(PYTHON) -m compileall .
+	$(PYTHON) -m compileall clipweave clipweave.py clipweave-gui.py tests
+	$(PYTHON) -m unittest discover -v
 
 run:
 	$(PY) clipweave.py "$(INPUT)" --media $(MEDIA) --orientation $(ORIENTATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+gui:
+	$(PY) clipweave-gui.py
+
+build-gui:
+	$(PIP) install pyinstaller
+	$(PY) -m PyInstaller --onefile --windowed --add-data "assets;assets" clipweave-gui.py
 
 slideshow:
 	$(PY) clipweave.py "$(INPUT)" --media images --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
