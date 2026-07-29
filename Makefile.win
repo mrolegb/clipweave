@@ -1,0 +1,41 @@
+PYTHON=python
+VENV=.venv
+PY=$(VENV)\Scripts\python.exe
+PIP=$(VENV)\Scripts\pip.exe
+INPUT=samples
+MEDIA=videos
+ORIENTATION=vertical
+IMAGE_DURATION=3
+
+help:
+	@echo Clipweave targets:
+	@echo   nmake /f Makefile.win install
+	@echo   nmake /f Makefile.win check
+	@echo   nmake /f Makefile.win run INPUT=D:\path\to\clips
+	@echo   nmake /f Makefile.win slideshow INPUT=D:\path\to\photos
+	@echo   nmake /f Makefile.win mixed INPUT=D:\path\to\media
+	@echo   nmake /f Makefile.win clean
+
+venv:
+	$(PYTHON) -m venv $(VENV)
+
+install: venv
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
+
+check:
+	$(PYTHON) -m compileall .
+
+run:
+	$(PY) clipweave.py "$(INPUT)" --media $(MEDIA) --orientation $(ORIENTATION)
+
+slideshow:
+	$(PY) clipweave.py "$(INPUT)" --media images --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION)
+
+mixed:
+	$(PY) clipweave.py "$(INPUT)" --media mixed --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION)
+
+clean:
+	if exist $(VENV) rmdir /s /q $(VENV)
+	if exist __pycache__ rmdir /s /q __pycache__
+	if exist clipweave\__pycache__ rmdir /s /q clipweave\__pycache__

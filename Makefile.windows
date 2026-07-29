@@ -1,0 +1,45 @@
+PYTHON ?= python
+SHELL := cmd
+.SHELLFLAGS := /C
+VENV ?= .venv
+PY := $(VENV)/Scripts/python.exe
+PIP := $(VENV)/Scripts/pip.exe
+INPUT ?= samples
+MEDIA ?= videos
+ORIENTATION ?= vertical
+IMAGE_DURATION ?= 3
+MAX_DURATION ?=
+OUTPUT ?=
+
+.PHONY: help venv install check run slideshow mixed clean
+
+help:
+	@echo "Clipweave Windows GNU Make targets:"
+	@echo "  mingw32-make -f Makefile.windows install"
+	@echo "  mingw32-make -f Makefile.windows run INPUT=C:/path/to/clips"
+	@echo "  mingw32-make -f Makefile.windows slideshow INPUT=C:/path/to/photos"
+	@echo "  mingw32-make -f Makefile.windows mixed INPUT=C:/path/to/media"
+
+venv:
+	$(PYTHON) -m venv $(VENV)
+
+install: venv
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
+
+check:
+	$(PYTHON) -m compileall .
+
+run:
+	$(PY) clipweave.py "$(INPUT)" --media $(MEDIA) --orientation $(ORIENTATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+slideshow:
+	$(PY) clipweave.py "$(INPUT)" --media images --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+mixed:
+	$(PY) clipweave.py "$(INPUT)" --media mixed --orientation $(ORIENTATION) --image-duration $(IMAGE_DURATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+clean:
+	if exist $(VENV) rmdir /s /q $(VENV)
+	if exist __pycache__ rmdir /s /q __pycache__
+	if exist clipweave\__pycache__ rmdir /s /q clipweave\__pycache__

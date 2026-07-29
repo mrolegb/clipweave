@@ -41,6 +41,34 @@ By default this creates:
 
 Intermediate normalized clips are created in a temporary directory and deleted automatically.
 
+## Quick Start With Make
+
+Linux/macOS:
+
+```bash
+make install
+make run INPUT=/path/to/clips
+make slideshow INPUT=/path/to/photos IMAGE_DURATION=3
+make mixed INPUT=/path/to/media
+```
+
+Windows with Visual Studio Build Tools `nmake`:
+
+```cmd
+nmake /f Makefile.win install
+nmake /f Makefile.win run INPUT=D:\path\to\clips
+nmake /f Makefile.win slideshow INPUT=D:\path\to\photos
+```
+
+Windows with GNU Make:
+
+```cmd
+mingw32-make -f Makefile.windows install
+mingw32-make -f Makefile.windows run INPUT=C:/path/to/clips
+```
+
+All make targets expect `ffmpeg` and `ffprobe` to already be available in `PATH`.
+
 ## Video Montage
 
 Use the default `--media videos` mode to build a montage from video files:
