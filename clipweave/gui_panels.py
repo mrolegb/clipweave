@@ -104,7 +104,7 @@ class OptionsPanel(QGroupBox):
     def apply_media_rules(self, media: str) -> None:
         """Enable only controls that apply to the selected media mode."""
         images_possible = media in {"images", "mixed"}
-        audio_possible = media in {"videos", "mixed"}
+        audio_possible = media == "videos"
 
         self._set_option_enabled("image_duration", images_possible)
         self._set_option_enabled("keep_audio", audio_possible)

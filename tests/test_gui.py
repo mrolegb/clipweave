@@ -54,12 +54,13 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window.image_duration_spin.isEnabled())
         self.assertTrue(self.window.keep_audio_check.isEnabled())
 
-    def test_mixed_mode_enables_image_duration_and_audio(self) -> None:
-        """Mixed media can use both image duration and source audio controls."""
+    def test_mixed_mode_enables_image_duration_but_disables_audio(self) -> None:
+        """Mixed media uses image duration but stays silent for stream compatibility."""
         self.window.media_combo.setCurrentText("mixed")
 
         self.assertTrue(self.window.image_duration_spin.isEnabled())
-        self.assertTrue(self.window.keep_audio_check.isEnabled())
+        self.assertFalse(self.window.keep_audio_check.isEnabled())
+        self.assertFalse(self.window.keep_audio_check.isChecked())
 
     def test_keep_audio_disables_fade_checkbox(self) -> None:
         """Keeping audio uses hard cuts to avoid transition audio artifacts."""
