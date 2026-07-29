@@ -17,6 +17,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--audio", choices=["keep", "remove"], default="remove")
     parser.add_argument("--image-duration", type=float, default=3.0, help="Seconds per image in image slideshow mode.")
     parser.add_argument("--max-duration", type=float, default=None, help="Maximum output duration in seconds.")
+    parser.add_argument("--target", type=Path, default=None, help="Reference image/video used to reject off-theme media.")
+    parser.add_argument("--target-threshold", type=float, default=0.35, help="Minimum visual similarity to --target.")
     parser.add_argument("--output", type=Path, default=None, help="Default: <input_dir>/clipweave_<media>_<orientation>.mp4")
     parser.add_argument("--work-dir", type=Path, default=None, help="Default: temporary directory, deleted after build.")
     parser.add_argument("--keep-work", action="store_true")
@@ -41,6 +43,8 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         audio=args.audio,
         image_duration=args.image_duration,
         max_duration=args.max_duration,
+        target=args.target,
+        target_threshold=args.target_threshold,
         work_dir=args.work_dir,
         keep_work=args.keep_work,
         transition=args.transition,

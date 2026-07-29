@@ -15,6 +15,8 @@ class BuildOptions:
     audio: str = "remove"
     image_duration: float = 3.0
     max_duration: float | None = None
+    target: Path | None = None
+    target_threshold: float = 0.35
     work_dir: Path | None = None
     keep_work: bool = False
     transition: str = "fade"

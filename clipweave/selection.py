@@ -64,6 +64,22 @@ def select_unique(clips: list[Clip], duplicate_threshold: float) -> list[Clip]:
     return selected
 
 
+def target_similarity(clip: Clip, target: Clip) -> float:
+    """Score how close a clip is to a target image/video descriptor."""
+    return max(
+        correlation(clip.start, target.start),
+        correlation(clip.mid, target.mid),
+        correlation(clip.end, target.end),
+    )
+
+
+def filter_by_target(clips: list[Clip], target: Clip | None, threshold: float) -> list[Clip]:
+    """Drop clips whose sampled frames are not visually close enough to the target."""
+    if target is None:
+        return clips
+    return [clip for clip in clips if target_similarity(clip, target) >= threshold]
+
+
 def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
     """Order clips by filename, duration, or greedy visual continuity."""
     if mode == "name":

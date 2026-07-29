@@ -45,6 +45,7 @@ Intermediate normalized clips are created in a temporary directory and deleted a
 python clipweave.py "D:\clips" `
   --orientation vertical `
   --media videos `
+  --target "D:\clips\reference.jpg" `
   --audio remove `
   --max-duration 600 `
   --transition fade `
@@ -61,6 +62,9 @@ Important parameters:
 
 - `--image-duration SECONDS`  
   Duration for each still image. Default is `3`.
+
+- `--target PATH` and `--target-threshold FLOAT`  
+  Use a reference image or video to reject media that is visually too different from the target. The target only filters the selection; it is not forced to be the first item. Default threshold is `0.35`.
 
 - `--audio remove|keep`  
   `remove` is the default. Fade transitions are only used when audio is removed; with audio kept, clips are joined with hard cuts to avoid audio artifacts.
@@ -95,6 +99,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
 - order the selected clips by visual continuity;
 - shorten fade duration when the outgoing and incoming frames are already similar.
+- optionally reject media below `--target-threshold` similarity to a target image/video.
 
 It does not crop clips or choose sub-ranges inside clips. Every selected clip is used from start to finish.
 
