@@ -16,9 +16,11 @@ from PySide6.QtWidgets import (
 )
 
 OPTION_FIELD_HEIGHT = 30
-PATH_FIELD_HEIGHT = 38
-OPTION_CELL_HEIGHT = 50
+PATH_FIELD_HEIGHT = 30
+OPTION_CELL_HEIGHT = 45
 OPTION_COLUMN_WIDTH = 540
+INPUT_PADDING = "6px 10px"
+INPUT_STYLE = f"QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ padding: {INPUT_PADDING}; }}"
 
 
 def label_with_hint(title: str, hint: str) -> QWidget:
@@ -41,6 +43,7 @@ def style_field(widget: QWidget, height: int = PATH_FIELD_HEIGHT, fixed: bool = 
     """Apply common sizing to text, combo, and numeric controls."""
     widget.setMinimumHeight(height)
     widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    widget.setStyleSheet(INPUT_STYLE)
     if fixed:
         widget.setFixedHeight(height)
 
@@ -72,7 +75,6 @@ def combo(values: list[str]) -> QComboBox:
     control = QComboBox()
     control.addItems(values)
     style_field(control, height=OPTION_FIELD_HEIGHT, fixed=True)
-    control.setStyleSheet("QComboBox { padding: 6px 10px; }")
     return control
 
 
@@ -98,7 +100,6 @@ def int_spin(minimum: int, maximum: int, value: int) -> QSpinBox:
 def style_spin(control: QSpinBox | QDoubleSpinBox) -> None:
     """Apply the same sizing and padding to all numeric option controls."""
     style_field(control, height=OPTION_FIELD_HEIGHT, fixed=True)
-    control.setStyleSheet("QSpinBox, QDoubleSpinBox { padding: 6px 10px; }")
 
 
 def add_option(grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> None:
