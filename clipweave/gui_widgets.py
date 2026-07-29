@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QGridLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -20,8 +21,10 @@ PATH_FIELD_HEIGHT = 30
 OPTION_CELL_HEIGHT = 45
 OPTION_COLUMN_WIDTH = 540
 INPUT_HORIZONTAL_PADDING = 10
+SPIN_BUTTON_WIDTH = 18
+SPIN_RIGHT_PADDING = SPIN_BUTTON_WIDTH + 6
 INPUT_STYLE = f"""
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+QLineEdit, QComboBox {{
     padding-top: 0px;
     padding-bottom: 0px;
     padding-left: {INPUT_HORIZONTAL_PADDING}px;
@@ -34,11 +37,11 @@ QComboBox::drop-down {{
     width: 24px;
 }}
 QSpinBox, QDoubleSpinBox {{
-    padding-right: 24px;
+    padding: 0px;
 }}
 QSpinBox::up-button, QSpinBox::down-button,
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
-    width: 18px;
+    width: {SPIN_BUTTON_WIDTH}px;
 }}
 """
 
@@ -64,6 +67,8 @@ def style_field(widget: QWidget, height: int = PATH_FIELD_HEIGHT, fixed: bool = 
     widget.setMinimumHeight(height)
     widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     widget.setStyleSheet(INPUT_STYLE)
+    if isinstance(widget, QLineEdit):
+        widget.setTextMargins(INPUT_HORIZONTAL_PADDING, 0, INPUT_HORIZONTAL_PADDING, 0)
     if fixed:
         widget.setFixedHeight(height)
 
@@ -120,6 +125,7 @@ def int_spin(minimum: int, maximum: int, value: int) -> QSpinBox:
 def style_spin(control: QSpinBox | QDoubleSpinBox) -> None:
     """Apply the same sizing and padding to all numeric option controls."""
     style_field(control, height=OPTION_FIELD_HEIGHT, fixed=True)
+    control.lineEdit().setTextMargins(INPUT_HORIZONTAL_PADDING, 0, SPIN_RIGHT_PADDING, 0)
 
 
 def add_option(grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> None:
