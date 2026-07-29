@@ -7,6 +7,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
+    from PySide6.QtWidgets import QAbstractSpinBox
     from PySide6.QtWidgets import QApplication, QScrollArea
 
     from clipweave.gui import MainWindow, resource_path
@@ -117,7 +118,8 @@ class GuiTests(unittest.TestCase):
         self.assertIn("padding-left: 10px", self.window.input_edit.styleSheet())
         self.assertEqual(self.window.input_edit.textMargins().left(), 10)
         self.assertEqual(self.window.image_duration_spin.lineEdit().textMargins().left(), 10)
-        self.assertGreater(self.window.image_duration_spin.lineEdit().textMargins().right(), 10)
+        self.assertEqual(self.window.image_duration_spin.lineEdit().textMargins().right(), 10)
+        self.assertEqual(self.window.image_duration_spin.buttonSymbols(), QAbstractSpinBox.ButtonSymbols.NoButtons)
 
     def test_layout_can_scroll_instead_of_overlapping(self) -> None:
         """The main form should scroll when it cannot fit vertically."""

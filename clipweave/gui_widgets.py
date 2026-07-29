@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -21,8 +22,6 @@ PATH_FIELD_HEIGHT = 30
 OPTION_CELL_HEIGHT = 45
 OPTION_COLUMN_WIDTH = 540
 INPUT_HORIZONTAL_PADDING = 10
-SPIN_BUTTON_WIDTH = 18
-SPIN_RIGHT_PADDING = SPIN_BUTTON_WIDTH + 6
 INPUT_STYLE = f"""
 QLineEdit, QComboBox {{
     padding-top: 0px;
@@ -38,10 +37,6 @@ QComboBox::drop-down {{
 }}
 QSpinBox, QDoubleSpinBox {{
     padding: 0px;
-}}
-QSpinBox::up-button, QSpinBox::down-button,
-QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
-    width: {SPIN_BUTTON_WIDTH}px;
 }}
 """
 
@@ -124,8 +119,9 @@ def int_spin(minimum: int, maximum: int, value: int) -> QSpinBox:
 
 def style_spin(control: QSpinBox | QDoubleSpinBox) -> None:
     """Apply the same sizing and padding to all numeric option controls."""
+    control.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
     style_field(control, height=OPTION_FIELD_HEIGHT, fixed=True)
-    control.lineEdit().setTextMargins(INPUT_HORIZONTAL_PADDING, 0, SPIN_RIGHT_PADDING, 0)
+    control.lineEdit().setTextMargins(INPUT_HORIZONTAL_PADDING, 0, INPUT_HORIZONTAL_PADDING, 0)
 
 
 def add_option(grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> None:
