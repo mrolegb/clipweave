@@ -32,6 +32,7 @@ class BuildOptions:
     smart_threshold: float = 0.94
     smart_max_known_ratio: float = 0.55
     smart_min_segment_duration: float = 2.0
+    smart_reorder_segments: bool = True
 
     @property
     def resolved_input_dir(self) -> Path:

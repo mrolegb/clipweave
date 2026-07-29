@@ -235,6 +235,9 @@ Important parameters:
 - `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, `--smart-max-known-ratio FLOAT`, and `--smart-min-segment-duration FLOAT`
   Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, `0.55` maximum already-known frame ratio, and `2.0` seconds minimum salvaged segment length.
 
+- `--no-smart-reorder-segments`
+  By default, smart editing runs a second visual ordering pass after segment trimming. This flag keeps salvaged segments in the first-pass clip order.
+
 - `--order visual|name|duration`  
   `visual` orders clips by similarity between the end of one clip and the start of the next.
 

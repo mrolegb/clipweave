@@ -66,11 +66,13 @@ class GuiTests(unittest.TestCase):
         """Smart editing details should stay disabled until the flag is enabled."""
         self.assertFalse(self.window.smart_max_known_ratio_spin.isEnabled())
         self.assertFalse(self.window.smart_min_segment_duration_spin.isEnabled())
+        self.assertFalse(self.window.smart_reorder_segments_check.isEnabled())
 
         self.window.smart_editing_check.setChecked(True)
 
         self.assertTrue(self.window.smart_max_known_ratio_spin.isEnabled())
         self.assertTrue(self.window.smart_min_segment_duration_spin.isEnabled())
+        self.assertTrue(self.window.smart_reorder_segments_check.isEnabled())
 
     def test_keep_audio_disables_fade_checkbox(self) -> None:
         """Keeping audio uses hard cuts to avoid transition audio artifacts."""
@@ -120,6 +122,7 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(options.smart_editing)
         self.assertEqual(options.smart_max_known_ratio, 0.4)
         self.assertEqual(options.smart_min_segment_duration, 3.5)
+        self.assertTrue(options.smart_reorder_segments)
         self.assertEqual(options.max_duration, 12.5)
 
     def test_assets_resolve_for_source_tree(self) -> None:

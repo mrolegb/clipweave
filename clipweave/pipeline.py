@@ -54,6 +54,23 @@ def read_target(options: BuildOptions) -> Clip | None:
     raise RuntimeError(f"Unsupported target file type: {options.target}")
 
 
+def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> list[Clip]:
+    """Order clips, apply smart editing, and optionally re-order salvaged segments."""
+    selected = order_clips(clips, options.order)
+    if not options.smart_editing:
+        return selected
+
+    selected = select_smart_sequences(
+        selected,
+        options.smart_threshold,
+        options.smart_max_known_ratio,
+        options.smart_min_segment_duration,
+    )
+    if options.smart_reorder_segments:
+        return order_clips(selected, options.order)
+    return selected
+
+
 def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], dict[str, int], Clip | None]:
     """Apply orientation, size, duplicate, ordering, and duration filters."""
     discovered = discover_clips(options.resolved_input_dir, options)
@@ -72,14 +89,7 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
     dimensions = choose_dimensions(clips, options.aspect_tolerance)
     same_size = [clip for clip in clips if clip.dimensions == dimensions]
     selected = select_unique(same_size, options.duplicate_threshold)
-    selected = order_clips(selected, options.order)
-    if options.smart_editing:
-        selected = select_smart_sequences(
-            selected,
-            options.smart_threshold,
-            options.smart_max_known_ratio,
-            options.smart_min_segment_duration,
-        )
+    selected = order_and_smart_edit(selected, options)
     smart_count = len(selected)
     selected = apply_duration_limit(selected, options.max_duration)
     if not selected:
@@ -148,6 +158,7 @@ def build_manifest(
         "smart_threshold": options.smart_threshold if options.smart_editing else None,
         "smart_max_known_ratio": options.smart_max_known_ratio if options.smart_editing else None,
         "smart_min_segment_duration": options.smart_min_segment_duration if options.smart_editing else None,
+        "smart_reorder_segments": options.smart_reorder_segments if options.smart_editing else None,
         "target": str(options.target) if options.target else None,
         "target_threshold": options.target_threshold if options.target else None,
         "transition": options.transition if not options.keep_audio else "cut",

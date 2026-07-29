@@ -45,6 +45,12 @@ def parse_args() -> argparse.Namespace:
         default=2.0,
         help="Minimum salvaged segment length when smart editing trims repeated clips.",
     )
+    parser.add_argument(
+        "--no-smart-reorder-segments",
+        action="store_false",
+        dest="smart_reorder_segments",
+        help="Keep smart-edited segments in their original clip order instead of reordering them visually.",
+    )
     return parser.parse_args()
 
 
@@ -75,6 +81,7 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         smart_threshold=args.smart_threshold,
         smart_max_known_ratio=args.smart_max_known_ratio,
         smart_min_segment_duration=args.smart_min_segment_duration,
+        smart_reorder_segments=args.smart_reorder_segments,
     )
 
 

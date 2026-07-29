@@ -11,7 +11,7 @@ import numpy as np
 from clipweave.cli import options_from_args
 from clipweave.config import BuildOptions
 from clipweave.models import Clip, Transition, VideoMeta
-from clipweave.pipeline import build_manifest, discover_clips, read_target
+from clipweave.pipeline import build_manifest, discover_clips, order_and_smart_edit, read_target
 from clipweave.render import fade_duration
 from clipweave.selection import (
     apply_duration_limit,
@@ -36,6 +36,7 @@ def vector(values: list[float]) -> np.ndarray:
 V1 = vector([1, 0, 0])
 V2 = vector([0, 1, 0])
 V3 = vector([0, 0, 1])
+V4 = vector([0.5, 0.5, 0.707])
 VMIX = vector([0.9, 0.1, 0])
 VFADE = vector([0.85, 0.52, 0])
 
@@ -110,6 +111,7 @@ class ConfigTests(unittest.TestCase):
             smart_threshold=0.93,
             smart_max_known_ratio=0.4,
             smart_min_segment_duration=3.0,
+            smart_reorder_segments=False,
         )
 
         options = options_from_args(args)
@@ -126,6 +128,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.smart_threshold, 0.93)
         self.assertEqual(options.smart_max_known_ratio, 0.4)
         self.assertEqual(options.smart_min_segment_duration, 3.0)
+        self.assertFalse(options.smart_reorder_segments)
 
 
 class SelectionTests(unittest.TestCase):
@@ -241,6 +244,23 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(selected[1].source_start, 5.0)
         self.assertEqual(selected[1].duration, 4.0)
         self.assertEqual(len(selected[1].sequence), 2)
+
+    def test_smart_segments_are_reordered_after_salvage(self) -> None:
+        """Smart editing can run a second visual ordering pass over salvaged segments."""
+        base = clip("base.mp4", start=V1, end=V1, brightness=10, sequence=(V1, V2, V3))
+        repeated = clip(
+            "repeated.mp4",
+            brightness=100,
+            sequence=(V1, V2, V3, VFADE, VFADE),
+            sequence_times=(0.0, 2.0, 4.0, 6.0, 8.0),
+            duration=10.0,
+        )
+        fresh = clip("fresh.mp4", start=VFADE, end=V2, brightness=10, sequence=(V4, V4, V4))
+        options = BuildOptions(input_dir=Path("."), output=None, smart_editing=True)
+
+        selected = order_and_smart_edit([base, repeated, fresh], options)
+
+        self.assertEqual([item.path.name for item in selected], ["base.mp4", "fresh.mp4", "repeated.mp4"])
 
 
 class RenderTests(unittest.TestCase):
