@@ -7,7 +7,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QScrollArea
 
     from clipweave.gui import MainWindow, resource_path
 except ModuleNotFoundError:  # pragma: no cover - exercised only without optional UI deps.
@@ -71,11 +71,17 @@ class GuiTests(unittest.TestCase):
 
     def test_options_are_roomy_enough(self) -> None:
         """Main controls should not collapse into thin rows."""
-        self.assertGreaterEqual(self.window.minimumWidth(), 1120)
+        self.assertGreaterEqual(self.window.minimumWidth(), 1180)
+        self.assertGreaterEqual(self.window.options_group.minimumHeight(), 650)
         self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 48)
         self.assertEqual(self.window.media_combo.height(), 48)
         self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 48)
         self.assertEqual(self.window.image_duration_spin.height(), 48)
+
+    def test_layout_can_scroll_instead_of_overlapping(self) -> None:
+        """The main form should scroll when it cannot fit vertically."""
+        self.assertIsInstance(self.window.centralWidget(), QScrollArea)
+        self.assertEqual(self.window.banner_label.height(), 170)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QSizePolicy,
+    QScrollArea,
     QSpinBox,
     QDoubleSpinBox,
     QVBoxLayout,
@@ -73,7 +74,7 @@ class MainWindow(QMainWindow):
         self.thread: QThread | None = None
         self.worker: BuildWorker | None = None
         self.setWindowTitle("Clipweave")
-        self.setMinimumSize(1120, 860)
+        self.setMinimumSize(1180, 900)
         icon_path = resource_path("assets/clipweave-icon.png")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
@@ -87,7 +88,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         self.banner_label = QLabel()
-        self.banner_label.setMinimumHeight(150)
+        self.banner_label.setFixedHeight(170)
         self.banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.banner_label.setStyleSheet("background: #15191d; border-radius: 6px;")
         self.banner_pixmap = QPixmap(str(resource_path("assets/clipweave-banner.png")))
@@ -120,10 +121,11 @@ class MainWindow(QMainWindow):
         path_grid.addLayout(output_actions, 2, 2)
         layout.addWidget(paths)
 
-        options = QGroupBox("Options")
-        option_grid = QGridLayout(options)
+        self.options_group = QGroupBox("Options")
+        self.options_group.setMinimumHeight(650)
+        option_grid = QGridLayout(self.options_group)
         option_grid.setHorizontalSpacing(24)
-        option_grid.setVerticalSpacing(16)
+        option_grid.setVerticalSpacing(18)
         self.media_combo = self._combo(["videos", "images", "mixed"])
         self.media_combo.currentTextChanged.connect(self.on_media_changed)
         self.orientation_combo = self._combo(["vertical", "horizontal", "any"])
@@ -156,7 +158,7 @@ class MainWindow(QMainWindow):
         self._add_option(option_grid, 9, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
         self._add_option(option_grid, 10, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
         self._add_option(option_grid, 11, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
-        layout.addWidget(options)
+        layout.addWidget(self.options_group)
 
         actions = QHBoxLayout()
         self.build_button = QPushButton("Build")
@@ -179,7 +181,11 @@ class MainWindow(QMainWindow):
         self.log.setMinimumHeight(180)
         layout.addWidget(self.status_label)
         layout.addWidget(self.log, 1)
-        self.setCentralWidget(root)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(root)
+        self.setCentralWidget(scroll)
 
     def resizeEvent(self, event) -> None:
         """Keep the banner crisp when the window changes size."""
@@ -196,11 +202,11 @@ class MainWindow(QMainWindow):
             return
         size = self.banner_label.size()
         if size.width() <= 1:
-            size.setWidth(940)
-        size.setHeight(max(size.height(), 150))
+            size.setWidth(1140)
+        size.setHeight(170)
         scaled = self.banner_pixmap.scaled(
             size,
-            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         self.banner_label.setPixmap(scaled)
@@ -232,8 +238,9 @@ class MainWindow(QMainWindow):
         column = index % 2
         cell.setMinimumHeight(88)
         grid.addWidget(cell, row, column)
+        grid.setRowMinimumHeight(row, 100)
         grid.setColumnStretch(column, 1)
-        grid.setColumnMinimumWidth(column, 500)
+        grid.setColumnMinimumWidth(column, 540)
 
     def _style_field(self, widget: QWidget, height: int = 40, fixed: bool = False) -> None:
         """Apply common sizing to input controls so they remain easy to use."""
