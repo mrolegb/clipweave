@@ -99,10 +99,16 @@ class GuiTests(unittest.TestCase):
         """Main controls should not collapse into thin rows."""
         self.assertGreaterEqual(self.window.minimumWidth(), 1180)
         self.assertGreaterEqual(self.window.options_group.minimumHeight(), 590)
-        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 44)
-        self.assertEqual(self.window.media_combo.height(), 44)
-        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 44)
-        self.assertEqual(self.window.image_duration_spin.height(), 44)
+        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 30)
+        self.assertEqual(self.window.media_combo.height(), 30)
+        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 30)
+        self.assertEqual(self.window.image_duration_spin.height(), 30)
+
+    def test_crf_spin_uses_same_numeric_field_style(self) -> None:
+        """CRF should look like the other numeric option fields."""
+        self.assertEqual(self.window.crf_spin.minimumHeight(), self.window.image_duration_spin.minimumHeight())
+        self.assertEqual(self.window.crf_spin.height(), self.window.image_duration_spin.height())
+        self.assertEqual(self.window.crf_spin.styleSheet(), self.window.image_duration_spin.styleSheet())
 
     def test_layout_can_scroll_instead_of_overlapping(self) -> None:
         """The main form should scroll when it cannot fit vertically."""

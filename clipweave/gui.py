@@ -134,11 +134,7 @@ class MainWindow(QMainWindow):
         self.max_duration_spin = self._double_spin(0.0, 24 * 60 * 60, 0.0, 1)
         self.target_threshold_spin = self._double_spin(-1.0, 1.0, 0.35, 2)
         self.duplicate_threshold_spin = self._double_spin(-1.0, 1.0, 0.965, 3)
-        self.crf_spin = QSpinBox()
-        self.crf_spin.setRange(0, 35)
-        self.crf_spin.setValue(16)
-        self._style_field(self.crf_spin, height=44, fixed=True)
-        self.crf_spin.setStyleSheet("QSpinBox { padding: 6px 10px; }")
+        self.crf_spin = self._int_spin(0, 35, 16)
         self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
         self.keep_audio_check = QCheckBox("Keep source audio")
@@ -255,7 +251,7 @@ class MainWindow(QMainWindow):
 
     def _style_checkbox(self, checkbox: QCheckBox) -> None:
         """Apply common sizing to boolean option controls."""
-        checkbox.setMinimumHeight(36)
+        checkbox.setMinimumHeight(30)
         checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def _browse_button(self, callback) -> QPushButton:
@@ -276,7 +272,7 @@ class MainWindow(QMainWindow):
         """Create a combo box from a list of string values."""
         combo = QComboBox()
         combo.addItems(values)
-        self._style_field(combo, height=44, fixed=True)
+        self._style_field(combo, height=30, fixed=True)
         combo.setStyleSheet("QComboBox { padding: 6px 10px; }")
         return combo
 
@@ -286,9 +282,21 @@ class MainWindow(QMainWindow):
         spin.setRange(minimum, maximum)
         spin.setDecimals(decimals)
         spin.setValue(value)
-        self._style_field(spin, height=44, fixed=True)
-        spin.setStyleSheet("QDoubleSpinBox { padding: 6px 10px; }")
+        self._style_spin(spin)
         return spin
+
+    def _int_spin(self, minimum: int, maximum: int, value: int) -> QSpinBox:
+        """Create a numeric control for integer-valued options."""
+        spin = QSpinBox()
+        spin.setRange(minimum, maximum)
+        spin.setValue(value)
+        self._style_spin(spin)
+        return spin
+
+    def _style_spin(self, spin: QSpinBox | QDoubleSpinBox) -> None:
+        """Apply the same sizing and padding to all numeric option controls."""
+        self._style_field(spin, height=30, fixed=True)
+        spin.setStyleSheet("QSpinBox, QDoubleSpinBox { padding: 6px 10px; }")
 
     def choose_input(self) -> None:
         """Prompt for the source media directory."""
