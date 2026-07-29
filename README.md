@@ -58,6 +58,14 @@ By default this creates:
 
 Intermediate normalized clips are created in a temporary directory and deleted automatically.
 
+## Download Windows Build
+
+The latest Windows binaries are published on every `main` update:
+
+https://github.com/mrolegb/clipweave/releases/latest
+
+Download `clipweave-windows.zip` from the release assets. It contains `clipweave.exe`, `clipweave-gui.exe`, and the README.
+
 ## Quick Start With Make
 
 Linux/macOS:
