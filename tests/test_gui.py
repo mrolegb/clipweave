@@ -38,10 +38,34 @@ class GuiTests(unittest.TestCase):
 
     def test_images_mode_forces_silent_output(self) -> None:
         """Image slideshow mode cannot keep source audio."""
+        self.window.keep_audio_check.setChecked(True)
         self.window.media_combo.setCurrentText("images")
 
-        self.assertEqual(self.window.audio_combo.currentText(), "remove")
-        self.assertFalse(self.window.audio_combo.isEnabled())
+        self.assertFalse(self.window.keep_audio_check.isChecked())
+        self.assertFalse(self.window.keep_audio_check.isEnabled())
+
+    def test_keep_audio_disables_fade_checkbox(self) -> None:
+        """Keeping audio uses hard cuts to avoid transition audio artifacts."""
+        self.window.keep_audio_check.setChecked(True)
+
+        self.assertFalse(self.window.fade_transition_check.isChecked())
+        self.assertFalse(self.window.fade_transition_check.isEnabled())
+
+    def test_boolean_options_are_checkboxes_below_other_options(self) -> None:
+        """Binary options are checkboxes placed below the main option controls."""
+        keep_audio_row, _, _, _ = self.window.option_grid.getItemPosition(
+            self.window.option_grid.indexOf(self.window.keep_audio_check.parentWidget())
+        )
+        fade_row, _, _, _ = self.window.option_grid.getItemPosition(
+            self.window.option_grid.indexOf(self.window.fade_transition_check.parentWidget())
+        )
+        temp_row, _, _, _ = self.window.option_grid.getItemPosition(
+            self.window.option_grid.indexOf(self.window.keep_work_check.parentWidget())
+        )
+
+        self.assertGreaterEqual(keep_audio_row, 5)
+        self.assertGreaterEqual(fade_row, 5)
+        self.assertGreaterEqual(temp_row, 6)
 
     def test_build_options_reads_current_fields(self) -> None:
         """Form controls are converted into BuildOptions for the pipeline."""
@@ -50,7 +74,7 @@ class GuiTests(unittest.TestCase):
         self.window.output_edit.setText("D:/out.mp4")
         self.window.media_combo.setCurrentText("mixed")
         self.window.orientation_combo.setCurrentText("horizontal")
-        self.window.audio_combo.setCurrentText("keep")
+        self.window.keep_audio_check.setChecked(True)
         self.window.max_duration_spin.setValue(12.5)
 
         options = self.window.build_options()
@@ -61,6 +85,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(options.media, "mixed")
         self.assertEqual(options.orientation, "horizontal")
         self.assertEqual(options.audio, "keep")
+        self.assertEqual(options.transition, "cut")
         self.assertEqual(options.max_duration, 12.5)
 
     def test_assets_resolve_for_source_tree(self) -> None:

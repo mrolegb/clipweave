@@ -123,14 +123,12 @@ class MainWindow(QMainWindow):
 
         self.options_group = QGroupBox("Options")
         self.options_group.setMinimumHeight(590)
-        option_grid = QGridLayout(self.options_group)
-        option_grid.setHorizontalSpacing(24)
-        option_grid.setVerticalSpacing(18)
+        self.option_grid = QGridLayout(self.options_group)
+        self.option_grid.setHorizontalSpacing(24)
+        self.option_grid.setVerticalSpacing(15)
         self.media_combo = self._combo(["videos", "images", "mixed"])
         self.media_combo.currentTextChanged.connect(self.on_media_changed)
         self.orientation_combo = self._combo(["vertical", "horizontal", "any"])
-        self.audio_combo = self._combo(["remove", "keep"])
-        self.transition_combo = self._combo(["fade", "cut"])
         self.order_combo = self._combo(["visual", "name", "duration"])
         self.image_duration_spin = self._double_spin(0.1, 60.0, 3.0, 1)
         self.max_duration_spin = self._double_spin(0.0, 24 * 60 * 60, 0.0, 1)
@@ -143,21 +141,27 @@ class MainWindow(QMainWindow):
         self.crf_spin.setStyleSheet("QSpinBox { padding: 6px 10px; }")
         self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
+        self.keep_audio_check = QCheckBox("Keep source audio")
+        self.keep_audio_check.toggled.connect(self.on_keep_audio_changed)
+        self.fade_transition_check = QCheckBox("Use fade transitions")
+        self.fade_transition_check.setChecked(True)
         self.keep_work_check = QCheckBox("Keep temporary files")
-        self._style_field(self.keep_work_check, height=44, fixed=True)
+        self._style_checkbox(self.keep_audio_check)
+        self._style_checkbox(self.fade_transition_check)
+        self._style_checkbox(self.keep_work_check)
 
-        self._add_option(option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
-        self._add_option(option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
-        self._add_option(option_grid, 2, "Audio", self.audio_combo, "Keep source audio or render a silent montage.")
-        self._add_option(option_grid, 3, "Transition", self.transition_combo, "Use visual fades or hard cuts between clips.")
-        self._add_option(option_grid, 4, "Order", self.order_combo, "Sort by visual continuity, filename, or duration.")
-        self._add_option(option_grid, 5, "Image duration, sec", self.image_duration_spin, "How long each still image stays on screen.")
-        self._add_option(option_grid, 6, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
-        self._add_option(option_grid, 7, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
-        self._add_option(option_grid, 8, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
-        self._add_option(option_grid, 9, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
-        self._add_option(option_grid, 10, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
-        self._add_option(option_grid, 11, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
+        self._add_option(self.option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
+        self._add_option(self.option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
+        self._add_option(self.option_grid, 2, "Order", self.order_combo, "Sort by visual continuity, filename, or duration.")
+        self._add_option(self.option_grid, 3, "Image duration, sec", self.image_duration_spin, "How long each still image stays on screen.")
+        self._add_option(self.option_grid, 4, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
+        self._add_option(self.option_grid, 5, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
+        self._add_option(self.option_grid, 6, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
+        self._add_option(self.option_grid, 7, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
+        self._add_option(self.option_grid, 8, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
+        self._add_option(self.option_grid, 10, "Keep audio", self.keep_audio_check, "Use source audio instead of rendering a silent montage.")
+        self._add_option(self.option_grid, 11, "Fade transitions", self.fade_transition_check, "Blend clips visually. Disabled automatically when audio is kept.")
+        self._add_option(self.option_grid, 12, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
         layout.addWidget(self.options_group)
 
         actions = QHBoxLayout()
@@ -231,14 +235,14 @@ class MainWindow(QMainWindow):
         cell = QWidget()
         layout = QVBoxLayout(cell)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(1)
         layout.addWidget(self._label_with_hint(title, hint))
         layout.addWidget(widget)
         row = index // 2
         column = index % 2
-        cell.setMinimumHeight(82)
+        cell.setMinimumHeight(50)
         grid.addWidget(cell, row, column)
-        grid.setRowMinimumHeight(row, 92)
+        grid.setRowMinimumHeight(row, 50)
         grid.setColumnStretch(column, 1)
         grid.setColumnMinimumWidth(column, 540)
 
@@ -248,6 +252,11 @@ class MainWindow(QMainWindow):
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         if fixed:
             widget.setFixedHeight(height)
+
+    def _style_checkbox(self, checkbox: QCheckBox) -> None:
+        """Apply common sizing to boolean option controls."""
+        checkbox.setMinimumHeight(36)
+        checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def _browse_button(self, callback) -> QPushButton:
         """Create a compact browse button wired to a file/folder picker callback."""
@@ -302,10 +311,18 @@ class MainWindow(QMainWindow):
     def on_media_changed(self, media: str) -> None:
         """Keep option combinations valid when switching media modes."""
         if media == "images":
-            self.audio_combo.setCurrentText("remove")
-            self.audio_combo.setEnabled(False)
+            self.keep_audio_check.setChecked(False)
+            self.keep_audio_check.setEnabled(False)
         else:
-            self.audio_combo.setEnabled(True)
+            self.keep_audio_check.setEnabled(True)
+
+    def on_keep_audio_changed(self, keep_audio: bool) -> None:
+        """Disable fades when source audio is preserved."""
+        if keep_audio:
+            self.fade_transition_check.setChecked(False)
+            self.fade_transition_check.setEnabled(False)
+        else:
+            self.fade_transition_check.setEnabled(True)
 
     def build_options(self) -> BuildOptions:
         """Read current UI state into BuildOptions."""
@@ -318,13 +335,13 @@ class MainWindow(QMainWindow):
             output=Path(output_text) if output_text else None,
             orientation=self.orientation_combo.currentText(),
             media=self.media_combo.currentText(),
-            audio=self.audio_combo.currentText(),
+            audio="keep" if self.keep_audio_check.isChecked() else "remove",
             image_duration=self.image_duration_spin.value(),
             max_duration=max_duration,
             target=Path(target_text) if target_text else None,
             target_threshold=self.target_threshold_spin.value(),
             keep_work=self.keep_work_check.isChecked(),
-            transition=self.transition_combo.currentText(),
+            transition="fade" if self.fade_transition_check.isChecked() else "cut",
             duplicate_threshold=self.duplicate_threshold_spin.value(),
             order=self.order_combo.currentText(),
             crf=self.crf_spin.value(),
