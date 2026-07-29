@@ -39,7 +39,7 @@ clipweave/gui_panels.py desktop UI path/options panels
 clipweave/gui_widgets.py shared desktop UI widgets and sizing
 clipweave/gui_worker.py desktop UI background build worker
 clipweave/gui_assets.py desktop UI asset path resolution
-assets/               README banner, GUI header banner, and app icon
+assets/               README banner and app icon
 tests/                unit tests for selection, manifest, render, CLI, and GUI wiring
 ```
 
@@ -99,7 +99,7 @@ The command line tool remains the primary interface, but Clipweave also includes
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, a slim header banner from `assets/clipweave-app-banner.png`, and the app icon from `assets/clipweave-icon.png`. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and the app icon from `assets/clipweave-icon.png`. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 

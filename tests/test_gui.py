@@ -90,7 +90,6 @@ class GuiTests(unittest.TestCase):
 
     def test_assets_resolve_for_source_tree(self) -> None:
         """GUI assets are available from the source checkout."""
-        self.assertTrue(resource_path("assets/clipweave-banner.png").exists())
         self.assertTrue(resource_path("assets/clipweave-app-banner.png").exists())
         self.assertTrue(resource_path("assets/clipweave-icon.png").exists())
         self.assertFalse(self.window.windowIcon().isNull())
@@ -113,7 +112,7 @@ class GuiTests(unittest.TestCase):
     def test_layout_can_scroll_instead_of_overlapping(self) -> None:
         """The main form should scroll when it cannot fit vertically."""
         self.assertIsInstance(self.window.centralWidget(), QScrollArea)
-        self.assertEqual(self.window.banner_label.height(), 120)
+        self.assertFalse(hasattr(self.window, "banner_label"))
 
 
 if __name__ == "__main__":

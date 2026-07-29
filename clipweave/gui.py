@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
 from .config import BuildOptions
 from .gui_assets import resource_path
 from .gui_panels import OptionsPanel, PathsPanel
-from .gui_widgets import HeaderBanner
 from .gui_worker import BuildWorker, ffmpeg_available
 
 
@@ -50,9 +49,6 @@ class MainWindow(QMainWindow):
         root = QWidget()
         layout = QVBoxLayout(root)
         layout.setSpacing(10)
-
-        self.banner_label = HeaderBanner()
-        layout.addWidget(self.banner_label)
 
         self.paths_panel = PathsPanel(self.choose_input, self.choose_target, self.choose_output)
         self.input_edit = self.paths_panel.input_edit

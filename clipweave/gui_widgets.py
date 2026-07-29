@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -17,47 +15,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .gui_assets import resource_path
-
-BANNER_HEIGHT = 120
 OPTION_FIELD_HEIGHT = 30
 PATH_FIELD_HEIGHT = 38
 OPTION_CELL_HEIGHT = 50
 OPTION_COLUMN_WIDTH = 540
-
-
-class HeaderBanner(QLabel):
-    """Scalable app banner used at the top of the desktop UI."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.setFixedHeight(BANNER_HEIGHT)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet("background: #15191d; border-radius: 6px;")
-        self.banner_pixmap = QPixmap(str(resource_path("assets/clipweave-app-banner.png")))
-        self.apply_pixmap()
-
-    def resizeEvent(self, event) -> None:
-        """Rescale the banner whenever Qt changes its geometry."""
-        super().resizeEvent(event)
-        self.apply_pixmap()
-
-    def apply_pixmap(self) -> None:
-        """Stretch the wide banner to fill the header area."""
-        if self.banner_pixmap.isNull():
-            self.setText("Clipweave")
-            self.setStyleSheet("font-size: 28px; font-weight: 700;")
-            return
-        size = self.size()
-        if size.width() <= 1:
-            size.setWidth(1140)
-        size.setHeight(BANNER_HEIGHT)
-        scaled = self.banner_pixmap.scaled(
-            size,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self.setPixmap(scaled)
 
 
 def label_with_hint(title: str, hint: str) -> QWidget:
