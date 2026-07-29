@@ -24,8 +24,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1
 
       - name: Install dependencies
         run: |

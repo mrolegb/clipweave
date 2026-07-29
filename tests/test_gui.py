@@ -10,7 +10,7 @@ try:
     from PySide6.QtWidgets import QApplication, QScrollArea
 
     from clipweave.gui import MainWindow, resource_path
-except ModuleNotFoundError:  # pragma: no cover - exercised only without optional UI deps.
+except (ImportError, ModuleNotFoundError):  # pragma: no cover - exercised only without optional UI deps.
     QApplication = None
     MainWindow = None
     resource_path = None
