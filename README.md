@@ -53,7 +53,6 @@ By default this creates:
 
 ```text
 <input folder>\clipweave_videos_vertical.mp4
-<input folder>\clipweave_videos_vertical.manifest.json
 ```
 
 Intermediate normalized clips are created in a temporary directory and deleted automatically.
@@ -223,6 +222,9 @@ Important parameters:
 - `--output PATH`  
   Output path. Default is the input folder.
 
+- `--save-manifest`
+  Write `<output>.manifest.json` next to the video. Without this flag, the CLI still prints the manifest but does not save it.
+
 - `--transition fade|cut`  
   `fade` uses shorter fades when adjacent frames are visually similar.
 
@@ -268,4 +270,4 @@ For image slideshows, each selected image is converted into a still video segmen
 
 ## Output
 
-The output is H.264 MP4 with `yuv420p`, which should open in normal players, browsers, and editors. A JSON manifest is written next to the final video with selected clips, durations, dimensions, and transition lengths.
+The output is H.264 MP4 with `yuv420p`, which should open in normal players, browsers, and editors. With `--save-manifest`, a JSON manifest is written next to the final video with selected clips, durations, dimensions, and transition lengths.

@@ -110,6 +110,7 @@ class GuiTests(unittest.TestCase):
         self.window.smart_editing_check.setChecked(True)
         self.window.smart_max_known_ratio_spin.setValue(0.4)
         self.window.smart_min_segment_duration_spin.setValue(3.5)
+        self.window.save_manifest_check.setChecked(True)
         self.window.max_duration_spin.setValue(12.5)
 
         options = self.window.build_options()
@@ -126,6 +127,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(options.smart_min_segment_duration, 3.5)
         self.assertTrue(options.smart_dedupe_segments)
         self.assertTrue(options.smart_reorder_segments)
+        self.assertTrue(options.save_manifest)
         self.assertEqual(options.max_duration, 12.5)
 
     def test_assets_resolve_for_source_tree(self) -> None:

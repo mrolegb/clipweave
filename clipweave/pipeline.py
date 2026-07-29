@@ -207,8 +207,9 @@ def build_video(options: BuildOptions) -> dict:
     transitions = render_video(clips, dimensions, output, options)
 
     manifest = build_manifest(options, clips, dimensions, candidate_count, transitions, target)
-    output.with_suffix(".manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    if options.save_manifest:
+        output.with_suffix(".manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
     return manifest

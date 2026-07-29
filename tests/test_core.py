@@ -11,7 +11,7 @@ import numpy as np
 from clipweave.cli import options_from_args
 from clipweave.config import BuildOptions
 from clipweave.models import Clip, Transition, VideoMeta
-from clipweave.pipeline import build_manifest, discover_clips, order_and_smart_edit, read_target
+from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target
 from clipweave.render import fade_duration
 from clipweave.selection import (
     apply_duration_limit,
@@ -110,6 +110,7 @@ class ConfigTests(unittest.TestCase):
             order="name",
             crf=18,
             preset="medium",
+            save_manifest=True,
             smart_editing=True,
             smart_sample_rate=2.0,
             smart_threshold=0.93,
@@ -128,6 +129,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.target_threshold, 0.5)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
+        self.assertTrue(options.save_manifest)
         self.assertTrue(options.smart_editing)
         self.assertEqual(options.smart_sample_rate, 2.0)
         self.assertEqual(options.smart_threshold, 0.93)
@@ -360,6 +362,29 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["target_similarity"], 1.0)
         self.assertEqual(manifest["transitions"][0]["fade_seconds"], 0.123)
+
+    def test_build_video_writes_manifest_only_when_requested(self) -> None:
+        """Manifest JSON is opt-in even though build_video still returns manifest data."""
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.mp4"
+            selected = [clip("a.mp4", duration=1.0)]
+            counts = {
+                "after_size_filter": 1,
+                "after_orientation": 1,
+                "after_target_filter": 1,
+                "after_smart_filter": 1,
+                "after_smart_trim": None,
+                "after_smart_dedupe": None,
+            }
+            with (
+                patch("clipweave.pipeline.select_clips", return_value=(selected, (1080, 1920), counts, None)),
+                patch("clipweave.pipeline.render_video", return_value=[]),
+            ):
+                build_video(BuildOptions(input_dir=Path(tmp), output=output))
+                self.assertFalse(output.with_suffix(".manifest.json").exists())
+
+                build_video(BuildOptions(input_dir=Path(tmp), output=output, save_manifest=True))
+                self.assertTrue(output.with_suffix(".manifest.json").exists())
 
 
 if __name__ == "__main__":
