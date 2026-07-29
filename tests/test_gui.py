@@ -66,22 +66,23 @@ class GuiTests(unittest.TestCase):
     def test_assets_resolve_for_source_tree(self) -> None:
         """GUI assets are available from the source checkout."""
         self.assertTrue(resource_path("assets/clipweave-banner.png").exists())
+        self.assertTrue(resource_path("assets/clipweave-app-banner.png").exists())
         self.assertTrue(resource_path("assets/clipweave-icon.png").exists())
         self.assertFalse(self.window.windowIcon().isNull())
 
     def test_options_are_roomy_enough(self) -> None:
         """Main controls should not collapse into thin rows."""
         self.assertGreaterEqual(self.window.minimumWidth(), 1180)
-        self.assertGreaterEqual(self.window.options_group.minimumHeight(), 650)
-        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 48)
-        self.assertEqual(self.window.media_combo.height(), 48)
-        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 48)
-        self.assertEqual(self.window.image_duration_spin.height(), 48)
+        self.assertGreaterEqual(self.window.options_group.minimumHeight(), 590)
+        self.assertGreaterEqual(self.window.media_combo.minimumHeight(), 44)
+        self.assertEqual(self.window.media_combo.height(), 44)
+        self.assertGreaterEqual(self.window.image_duration_spin.minimumHeight(), 44)
+        self.assertEqual(self.window.image_duration_spin.height(), 44)
 
     def test_layout_can_scroll_instead_of_overlapping(self) -> None:
         """The main form should scroll when it cannot fit vertically."""
         self.assertIsInstance(self.window.centralWidget(), QScrollArea)
-        self.assertEqual(self.window.banner_label.height(), 170)
+        self.assertEqual(self.window.banner_label.height(), 120)
 
 
 if __name__ == "__main__":

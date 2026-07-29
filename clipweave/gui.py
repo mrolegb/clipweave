@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         self.thread: QThread | None = None
         self.worker: BuildWorker | None = None
         self.setWindowTitle("Clipweave")
-        self.setMinimumSize(1180, 900)
+        self.setMinimumSize(1180, 860)
         icon_path = resource_path("assets/clipweave-icon.png")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
@@ -88,10 +88,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         self.banner_label = QLabel()
-        self.banner_label.setFixedHeight(170)
+        self.banner_label.setFixedHeight(120)
         self.banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.banner_label.setStyleSheet("background: #15191d; border-radius: 6px;")
-        self.banner_pixmap = QPixmap(str(resource_path("assets/clipweave-banner.png")))
+        self.banner_pixmap = QPixmap(str(resource_path("assets/clipweave-app-banner.png")))
         self._apply_banner_pixmap()
         layout.addWidget(self.banner_label)
 
@@ -122,7 +122,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(paths)
 
         self.options_group = QGroupBox("Options")
-        self.options_group.setMinimumHeight(650)
+        self.options_group.setMinimumHeight(590)
         option_grid = QGridLayout(self.options_group)
         option_grid.setHorizontalSpacing(24)
         option_grid.setVerticalSpacing(18)
@@ -139,12 +139,12 @@ class MainWindow(QMainWindow):
         self.crf_spin = QSpinBox()
         self.crf_spin.setRange(0, 35)
         self.crf_spin.setValue(16)
-        self._style_field(self.crf_spin, height=48, fixed=True)
-        self.crf_spin.setStyleSheet("QSpinBox { padding: 8px 10px; }")
+        self._style_field(self.crf_spin, height=44, fixed=True)
+        self.crf_spin.setStyleSheet("QSpinBox { padding: 6px 10px; }")
         self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
         self.preset_combo.setCurrentText("slow")
         self.keep_work_check = QCheckBox("Keep temporary files")
-        self._style_field(self.keep_work_check, height=48, fixed=True)
+        self._style_field(self.keep_work_check, height=44, fixed=True)
 
         self._add_option(option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
         self._add_option(option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
@@ -203,7 +203,7 @@ class MainWindow(QMainWindow):
         size = self.banner_label.size()
         if size.width() <= 1:
             size.setWidth(1140)
-        size.setHeight(170)
+        size.setHeight(120)
         scaled = self.banner_pixmap.scaled(
             size,
             Qt.AspectRatioMode.IgnoreAspectRatio,
@@ -236,13 +236,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(widget)
         row = index // 2
         column = index % 2
-        cell.setMinimumHeight(88)
+        cell.setMinimumHeight(82)
         grid.addWidget(cell, row, column)
-        grid.setRowMinimumHeight(row, 100)
+        grid.setRowMinimumHeight(row, 92)
         grid.setColumnStretch(column, 1)
         grid.setColumnMinimumWidth(column, 540)
 
-    def _style_field(self, widget: QWidget, height: int = 40, fixed: bool = False) -> None:
+    def _style_field(self, widget: QWidget, height: int = 38, fixed: bool = False) -> None:
         """Apply common sizing to input controls so they remain easy to use."""
         widget.setMinimumHeight(height)
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -253,22 +253,22 @@ class MainWindow(QMainWindow):
         """Create a compact browse button wired to a file/folder picker callback."""
         button = QPushButton("Browse")
         button.clicked.connect(callback)
-        button.setMinimumHeight(40)
+        button.setMinimumHeight(38)
         return button
 
     def _small_button(self, text: str, callback) -> QPushButton:
         """Create a compact utility button."""
         button = QPushButton(text)
         button.clicked.connect(callback)
-        button.setMinimumHeight(40)
+        button.setMinimumHeight(38)
         return button
 
     def _combo(self, values: list[str]) -> QComboBox:
         """Create a combo box from a list of string values."""
         combo = QComboBox()
         combo.addItems(values)
-        self._style_field(combo, height=48, fixed=True)
-        combo.setStyleSheet("QComboBox { padding: 8px 10px; }")
+        self._style_field(combo, height=44, fixed=True)
+        combo.setStyleSheet("QComboBox { padding: 6px 10px; }")
         return combo
 
     def _double_spin(self, minimum: float, maximum: float, value: float, decimals: int) -> QDoubleSpinBox:
@@ -277,8 +277,8 @@ class MainWindow(QMainWindow):
         spin.setRange(minimum, maximum)
         spin.setDecimals(decimals)
         spin.setValue(value)
-        self._style_field(spin, height=48, fixed=True)
-        spin.setStyleSheet("QDoubleSpinBox { padding: 8px 10px; }")
+        self._style_field(spin, height=44, fixed=True)
+        spin.setStyleSheet("QDoubleSpinBox { padding: 6px 10px; }")
         return spin
 
     def choose_input(self) -> None:
