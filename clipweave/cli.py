@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--crf", type=int, default=16)
     parser.add_argument("--preset", default="slow")
     parser.add_argument("--save-manifest", action="store_true", help="Write a .manifest.json file next to the output video.")
+    parser.add_argument("--save-contact-sheet", action="store_true", help="Write a debug .contact.jpg with one frame per selected clip.")
     parser.add_argument("--smart-editing", action="store_true", help="Trim or drop clips whose sampled sequence is mostly already covered.")
     parser.add_argument("--smart-sample-rate", type=float, default=1.0, help="Frames per second to sample for smart editing.")
     parser.add_argument("--smart-threshold", type=float, default=0.94, help="Frame similarity threshold for smart editing.")
@@ -84,6 +85,7 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         crf=args.crf,
         preset=args.preset,
         save_manifest=args.save_manifest,
+        save_contact_sheet=args.save_contact_sheet,
         smart_editing=args.smart_editing,
         smart_sample_rate=args.smart_sample_rate,
         smart_threshold=args.smart_threshold,

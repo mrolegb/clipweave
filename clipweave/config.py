@@ -28,6 +28,7 @@ class BuildOptions:
     crf: int = 16
     preset: str = "slow"
     save_manifest: bool = False
+    save_contact_sheet: bool = False
     smart_editing: bool = False
     smart_sample_rate: float = 1.0
     smart_threshold: float = 0.94

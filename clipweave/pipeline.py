@@ -8,6 +8,7 @@ from pathlib import Path
 from .analysis import read_clip, read_image_clip
 from .config import BuildOptions
 from .constants import IMAGE_EXTS, VIDEO_EXTS
+from .contact_sheet import save_contact_sheet
 from .models import Clip, Transition
 from .render import concat_plain, concat_xfade, normalize_source
 from .selection import (
@@ -207,6 +208,8 @@ def build_video(options: BuildOptions) -> dict:
     transitions = render_video(clips, dimensions, output, options)
 
     manifest = build_manifest(options, clips, dimensions, candidate_count, transitions, target)
+    if options.save_contact_sheet:
+        manifest["contact_sheet"] = str(save_contact_sheet(clips, output))
     if options.save_manifest:
         output.with_suffix(".manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2),

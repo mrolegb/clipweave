@@ -111,6 +111,7 @@ class ConfigTests(unittest.TestCase):
             crf=18,
             preset="medium",
             save_manifest=True,
+            save_contact_sheet=True,
             smart_editing=True,
             smart_sample_rate=2.0,
             smart_threshold=0.93,
@@ -130,6 +131,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
         self.assertTrue(options.save_manifest)
+        self.assertTrue(options.save_contact_sheet)
         self.assertTrue(options.smart_editing)
         self.assertEqual(options.smart_sample_rate, 2.0)
         self.assertEqual(options.smart_threshold, 0.93)
@@ -385,6 +387,32 @@ class PipelineTests(unittest.TestCase):
 
                 build_video(BuildOptions(input_dir=Path(tmp), output=output, save_manifest=True))
                 self.assertTrue(output.with_suffix(".manifest.json").exists())
+
+    def test_build_video_writes_contact_sheet_only_when_requested(self) -> None:
+        """Contact sheet debug output is opt-in."""
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.mp4"
+            selected = [clip("a.mp4", duration=1.0)]
+            counts = {
+                "after_size_filter": 1,
+                "after_orientation": 1,
+                "after_target_filter": 1,
+                "after_smart_filter": 1,
+                "after_smart_trim": None,
+                "after_smart_dedupe": None,
+            }
+            with (
+                patch("clipweave.pipeline.select_clips", return_value=(selected, (1080, 1920), counts, None)),
+                patch("clipweave.pipeline.render_video", return_value=[]),
+                patch("clipweave.pipeline.save_contact_sheet", return_value=output.with_suffix(".contact.jpg")) as contact_sheet,
+            ):
+                manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output))
+                contact_sheet.assert_not_called()
+                self.assertNotIn("contact_sheet", manifest)
+
+                manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output, save_contact_sheet=True))
+                contact_sheet.assert_called_once()
+                self.assertEqual(manifest["contact_sheet"], str(output.with_suffix(".contact.jpg")))
 
 
 if __name__ == "__main__":

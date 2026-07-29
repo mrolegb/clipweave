@@ -97,6 +97,7 @@ class MainWindow(QMainWindow):
         self.smart_dedupe_segments_check = panel.smart_dedupe_segments_check
         self.smart_reorder_segments_check = panel.smart_reorder_segments_check
         self.save_manifest_check = panel.save_manifest_check
+        self.save_contact_sheet_check = panel.save_contact_sheet_check
         self.keep_work_check = panel.keep_work_check
 
     def _build_actions(self) -> QHBoxLayout:
@@ -166,6 +167,7 @@ class MainWindow(QMainWindow):
             crf=self.crf_spin.value(),
             preset=self.preset_combo.currentText(),
             save_manifest=self.save_manifest_check.isChecked(),
+            save_contact_sheet=self.save_contact_sheet_check.isChecked(),
             smart_editing=self.smart_editing_check.isChecked(),
             smart_max_known_ratio=self.smart_max_known_ratio_spin.value(),
             smart_min_segment_duration=self.smart_min_segment_duration_spin.value(),
