@@ -41,6 +41,48 @@ By default this creates:
 
 Intermediate normalized clips are created in a temporary directory and deleted automatically.
 
+## Video Montage
+
+Use the default `--media videos` mode to build a montage from video files:
+
+```powershell
+python clipweave.py "D:\clips" `
+  --media videos `
+  --orientation vertical `
+  --audio remove
+```
+
+Supported video extensions: `.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.m4v`.
+
+## Image Slideshow
+
+Use `--media images` to build a slideshow from still images. Each image becomes a fixed-duration video segment.
+
+```powershell
+python clipweave.py "D:\photos" `
+  --media images `
+  --orientation vertical `
+  --image-duration 3
+```
+
+`--image-duration` controls how long each photo stays on screen, in seconds. The default is `3`.
+
+Supported image extensions: `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`.
+
+## Mixed Media
+
+Use `--media mixed` to combine videos and still images in one output:
+
+```powershell
+python clipweave.py "D:\media" `
+  --media mixed `
+  --orientation vertical `
+  --image-duration 2.5 `
+  --audio remove
+```
+
+Images are treated like clips for duplicate detection, target filtering, ordering, and fade transitions.
+
 ## Options
 
 ```powershell
