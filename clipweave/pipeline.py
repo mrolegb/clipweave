@@ -74,7 +74,12 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
     selected = select_unique(same_size, options.duplicate_threshold)
     selected = order_clips(selected, options.order)
     if options.smart_editing:
-        selected = select_smart_sequences(selected, options.smart_threshold, options.smart_max_known_ratio)
+        selected = select_smart_sequences(
+            selected,
+            options.smart_threshold,
+            options.smart_max_known_ratio,
+            options.smart_min_segment_duration,
+        )
     smart_count = len(selected)
     selected = apply_duration_limit(selected, options.max_duration)
     if not selected:
@@ -142,6 +147,7 @@ def build_manifest(
         "smart_sample_rate": options.smart_sample_rate if options.smart_editing else None,
         "smart_threshold": options.smart_threshold if options.smart_editing else None,
         "smart_max_known_ratio": options.smart_max_known_ratio if options.smart_editing else None,
+        "smart_min_segment_duration": options.smart_min_segment_duration if options.smart_editing else None,
         "target": str(options.target) if options.target else None,
         "target_threshold": options.target_threshold if options.target else None,
         "transition": options.transition if not options.keep_audio else "cut",
@@ -156,6 +162,8 @@ def build_manifest(
             {
                 "file": str(clip.path),
                 "duration": round(clip.duration, 3),
+                "source_start": round(clip.source_start, 3),
+                "source_end": round(clip.trim_end, 3),
                 "media_type": clip.media_type,
                 "target_similarity": round(target_similarity(clip, target), 4) if target else None,
                 "known_frame_ratio": round(clip.known_frame_ratio, 4) if clip.known_frame_ratio is not None else None,

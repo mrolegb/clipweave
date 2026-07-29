@@ -53,6 +53,7 @@ def clip(
     brightness: float = 100.0,
     media_type: str = "video",
     sequence: tuple[np.ndarray, ...] | None = None,
+    sequence_times: tuple[float, ...] | None = None,
 ) -> Clip:
     """Create a small Clip fixture without reading media files."""
     return Clip(
@@ -65,6 +66,7 @@ def clip(
         brightness=brightness,
         media_type=media_type,
         sequence=sequence or (start, mid, end),
+        sequence_times=sequence_times or (0.0, duration / 2, duration),
     )
 
 
@@ -107,6 +109,7 @@ class ConfigTests(unittest.TestCase):
             smart_sample_rate=2.0,
             smart_threshold=0.93,
             smart_max_known_ratio=0.4,
+            smart_min_segment_duration=3.0,
         )
 
         options = options_from_args(args)
@@ -122,6 +125,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.smart_sample_rate, 2.0)
         self.assertEqual(options.smart_threshold, 0.93)
         self.assertEqual(options.smart_max_known_ratio, 0.4)
+        self.assertEqual(options.smart_min_segment_duration, 3.0)
 
 
 class SelectionTests(unittest.TestCase):
@@ -215,6 +219,28 @@ class SelectionTests(unittest.TestCase):
 
         self.assertEqual([item.path.name for item in selected], ["first.mp4", "fresh.mp4"])
         self.assertEqual(selected[0].known_frame_ratio, 0.0)
+
+    def test_smart_sequence_dedupe_salvages_novel_segments(self) -> None:
+        """Smart editing can trim repeated clips down to still-new sequences."""
+        first = clip("first.mp4", sequence=(V1, V2, V3))
+        repeated_with_new_end = clip(
+            "mixed.mp4",
+            sequence=(V1, V2, V3, VFADE, VFADE),
+            sequence_times=(0.0, 2.0, 4.0, 6.0, 8.0),
+            duration=10.0,
+        )
+
+        selected = select_smart_sequences(
+            [first, repeated_with_new_end],
+            threshold=0.94,
+            max_known_ratio=0.55,
+            min_segment_duration=2.0,
+        )
+
+        self.assertEqual([item.path.name for item in selected], ["first.mp4", "mixed.mp4"])
+        self.assertEqual(selected[1].source_start, 5.0)
+        self.assertEqual(selected[1].duration, 4.0)
+        self.assertEqual(len(selected[1].sequence), 2)
 
 
 class RenderTests(unittest.TestCase):

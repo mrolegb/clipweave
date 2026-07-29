@@ -31,6 +31,7 @@ class BuildOptions:
     smart_sample_rate: float = 1.0
     smart_threshold: float = 0.94
     smart_max_known_ratio: float = 0.55
+    smart_min_segment_duration: float = 2.0
 
     @property
     def resolved_input_dir(self) -> Path:

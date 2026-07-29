@@ -6,7 +6,7 @@ from dataclasses import replace
 import numpy as np
 
 from .analysis import correlation
-from .models import Clip
+from .models import Clip, VideoMeta
 
 
 def orientation_ok(clip: Clip, orientation: str) -> bool:
@@ -90,25 +90,94 @@ def filter_by_target(clips: list[Clip], target: Clip | None, threshold: float) -
 def known_frame_ratio(clip: Clip, known_frames: list[np.ndarray], threshold: float) -> float:
     """Return the share of a clip's sampled sequence already represented by known frames."""
     sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+    flags = known_frame_flags(sequence, known_frames, threshold)
+    return sum(flags) / len(flags) if flags else 0.0
+
+
+def known_frame_flags(
+    sequence: tuple[np.ndarray, ...],
+    known_frames: list[np.ndarray],
+    threshold: float,
+) -> list[bool]:
+    """Mark sampled frames that are visually represented by earlier selected frames."""
     if not sequence or not known_frames:
-        return 0.0
-    known_count = 0
-    for frame in sequence:
-        if max(correlation(frame, known) for known in known_frames) >= threshold:
-            known_count += 1
-    return known_count / len(sequence)
+        return [False for _ in sequence]
+    return [max(correlation(frame, known) for known in known_frames) >= threshold for frame in sequence]
 
 
-def select_smart_sequences(clips: list[Clip], threshold: float, max_known_ratio: float) -> list[Clip]:
-    """Drop clips whose sampled frame sequence is mostly covered by earlier selections."""
+def novel_ranges(flags: list[bool]) -> list[tuple[int, int]]:
+    """Return inclusive ranges of sampled frames that are not known yet."""
+    ranges: list[tuple[int, int]] = []
+    start = None
+    for index, is_known in enumerate(flags):
+        if not is_known and start is None:
+            start = index
+        elif is_known and start is not None:
+            ranges.append((start, index - 1))
+            start = None
+    if start is not None:
+        ranges.append((start, len(flags) - 1))
+    return ranges
+
+
+def clip_segment(clip: Clip, start_index: int, end_index: int) -> Clip:
+    """Create a source-trimmed Clip from a sampled frame index range."""
+    sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+    times = clip.sequence_times
+    if len(times) != len(sequence):
+        step = clip.duration / max(1, len(sequence) - 1)
+        times = tuple(index * step for index in range(len(sequence)))
+
+    start_margin = (times[start_index] - times[start_index - 1]) / 2 if start_index > 0 else times[start_index]
+    if end_index + 1 < len(times):
+        end_margin = (times[end_index + 1] - times[end_index]) / 2
+    else:
+        end_margin = (times[end_index] - times[end_index - 1]) / 2 if end_index > 0 else clip.duration - times[end_index]
+    start = max(0.0, times[start_index] - start_margin)
+    end = min(clip.duration, times[end_index] + end_margin)
+    duration = max(0.0, end - start)
+    segment_sequence = sequence[start_index : end_index + 1]
+    mid_index = start_index + ((end_index - start_index) // 2)
+    return replace(
+        clip,
+        meta=VideoMeta(width=clip.width, height=clip.height, duration=duration),
+        start=sequence[start_index],
+        mid=sequence[mid_index],
+        end=sequence[end_index],
+        sequence=segment_sequence,
+        sequence_times=tuple(time - start for time in times[start_index : end_index + 1]),
+        source_start=clip.source_start + start,
+    )
+
+
+def select_smart_sequences(
+    clips: list[Clip],
+    threshold: float,
+    max_known_ratio: float,
+    min_segment_duration: float = 2.0,
+) -> list[Clip]:
+    """Keep whole clips when mostly fresh and salvage novel segments from repeated clips."""
     selected: list[Clip] = []
     known_frames: list[np.ndarray] = []
     for clip in clips:
-        ratio = known_frame_ratio(clip, known_frames, threshold)
+        sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+        flags = known_frame_flags(sequence, known_frames, threshold)
+        ratio = sum(flags) / len(flags) if flags else 0.0
         if ratio <= max_known_ratio:
             selected_clip = replace(clip, known_frame_ratio=ratio)
             selected.append(selected_clip)
             known_frames.extend(selected_clip.sequence or (selected_clip.start, selected_clip.mid, selected_clip.end))
+            continue
+
+        for start_index, end_index in novel_ranges(flags):
+            selected_clip = replace(
+                clip_segment(clip, start_index, end_index),
+                known_frame_ratio=ratio,
+            )
+            if selected_clip.duration < min_segment_duration:
+                continue
+            selected.append(selected_clip)
+            known_frames.extend(selected_clip.sequence)
     return selected
 
 

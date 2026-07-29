@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
         self.target_threshold_spin = panel.target_threshold_spin
         self.duplicate_threshold_spin = panel.duplicate_threshold_spin
         self.smart_max_known_ratio_spin = panel.smart_max_known_ratio_spin
+        self.smart_min_segment_duration_spin = panel.smart_min_segment_duration_spin
         self.crf_spin = panel.crf_spin
         self.preset_combo = panel.preset_combo
         self.keep_audio_check = panel.keep_audio_check
@@ -163,6 +164,7 @@ class MainWindow(QMainWindow):
             preset=self.preset_combo.currentText(),
             smart_editing=self.smart_editing_check.isChecked(),
             smart_max_known_ratio=self.smart_max_known_ratio_spin.value(),
+            smart_min_segment_duration=self.smart_min_segment_duration_spin.value(),
         )
 
     def validate_options(self, options: BuildOptions) -> bool:

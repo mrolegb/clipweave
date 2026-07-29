@@ -27,6 +27,8 @@ def normalize_clip(
     keep_audio: bool,
     crf: int,
     preset: str,
+    start: float = 0.0,
+    duration: float | None = None,
 ) -> None:
     """Transcode a video clip into the common output size and codec settings."""
     width, height = dimensions
@@ -36,8 +38,16 @@ def normalize_clip(
         "-loglevel",
         "error",
         "-y",
+    ]
+    if start > 0:
+        command += ["-ss", f"{start:.3f}"]
+    command += [
         "-i",
         str(src),
+    ]
+    if duration is not None:
+        command += ["-t", f"{duration:.3f}"]
+    command += [
         "-vf",
         f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30,format=yuv420p",
     ]
@@ -118,7 +128,7 @@ def normalize_source(
     if clip.media_type == "image":
         normalize_image(clip.path, dst, dimensions, clip.duration, crf, preset)
         return
-    normalize_clip(clip.path, dst, dimensions, keep_audio, crf, preset)
+    normalize_clip(clip.path, dst, dimensions, keep_audio, crf, preset, clip.source_start, clip.duration)
 
 
 def concat_plain(clips: list[Path], output: Path, concat_file: Path) -> None:

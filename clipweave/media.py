@@ -71,6 +71,9 @@ def frames_at(path: Path, fractions: list[float]) -> list[np.ndarray | None]:
     if not cap.isOpened():
         return [None for _ in fractions]
     count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    if count <= 0:
+        cap.release()
+        return [None for _ in fractions]
     frames = []
     for fraction in fractions:
         cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, min(count - 1, int(count * fraction))))

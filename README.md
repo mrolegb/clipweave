@@ -230,10 +230,10 @@ Important parameters:
   Default `0.965`. Lower values remove more near-duplicates; higher values keep more clips.
 
 - `--smart-editing`
-  Samples each video across its timeline and skips clips whose frames are mostly already represented by earlier selected clips. This keeps more of the final montage focused on new visual material.
+  Samples each video across its timeline and trims or skips clips whose frames are mostly already represented by earlier selected clips. This keeps more of the final montage focused on new visual material.
 
-- `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, and `--smart-max-known-ratio FLOAT`
-  Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, and `0.55` maximum already-known frame ratio.
+- `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, `--smart-max-known-ratio FLOAT`, and `--smart-min-segment-duration FLOAT`
+  Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, `0.55` maximum already-known frame ratio, and `2.0` seconds minimum salvaged segment length.
 
 - `--order visual|name|duration`  
   `visual` orders clips by similarity between the end of one clip and the start of the next.
@@ -251,7 +251,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - remove exact file duplicates;
 - remove strong visual duplicates;
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
-- optionally skip clips whose sampled frame sequence is mostly covered by earlier clips with `--smart-editing`;
+- optionally trim repeated clips to novel segments, or skip them when no useful segment remains, with `--smart-editing`;
 - order the selected clips by visual continuity;
 - shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally reject media below `--target-threshold` similarity to a target image/video.

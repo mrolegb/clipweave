@@ -30,14 +30,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--order", choices=["visual", "name", "duration"], default="visual")
     parser.add_argument("--crf", type=int, default=16)
     parser.add_argument("--preset", default="slow")
-    parser.add_argument("--smart-editing", action="store_true", help="Drop clips whose sampled sequence is mostly already covered.")
+    parser.add_argument("--smart-editing", action="store_true", help="Trim or drop clips whose sampled sequence is mostly already covered.")
     parser.add_argument("--smart-sample-rate", type=float, default=1.0, help="Frames per second to sample for smart editing.")
     parser.add_argument("--smart-threshold", type=float, default=0.94, help="Frame similarity threshold for smart editing.")
     parser.add_argument(
         "--smart-max-known-ratio",
         type=float,
         default=0.55,
-        help="Drop a clip when more than this share of sampled frames is already known.",
+        help="Trim a clip when more than this share of sampled frames is already known.",
+    )
+    parser.add_argument(
+        "--smart-min-segment-duration",
+        type=float,
+        default=2.0,
+        help="Minimum salvaged segment length when smart editing trims repeated clips.",
     )
     return parser.parse_args()
 
@@ -68,6 +74,7 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         smart_sample_rate=args.smart_sample_rate,
         smart_threshold=args.smart_threshold,
         smart_max_known_ratio=args.smart_max_known_ratio,
+        smart_min_segment_duration=args.smart_min_segment_duration,
     )
 
 

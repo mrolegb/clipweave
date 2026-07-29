@@ -32,6 +32,11 @@ def sequence_fractions(duration: float, sample_rate: float) -> list[float]:
     return [0.02 + (0.96 * index / (count - 1)) for index in range(count)]
 
 
+def fraction_times(duration: float, fractions: list[float]) -> tuple[float, ...]:
+    """Convert sampled frame fractions into source timestamps."""
+    return tuple(max(0.0, min(duration, duration * fraction)) for fraction in fractions)
+
+
 def read_clip(path: Path, sequence_sample_rate: float = 0.0) -> Clip | None:
     """Read a video and sample start/middle/end frames into a Clip descriptor."""
     meta = probe_video(path)
@@ -46,13 +51,17 @@ def read_clip(path: Path, sequence_sample_rate: float = 0.0) -> Clip | None:
     start_vector = frame_vector(frames[0])
     mid_vector = frame_vector(frames[1])
     end_vector = frame_vector(frames[2])
+    sequence_fractions_used = [0.04, 0.50, 0.96]
     sequence = (start_vector, mid_vector, end_vector)
     if sequence_sample_rate > 0:
-        sequence = tuple(
-            frame_vector(frame)
-            for frame in frames_at(path, sequence_fractions(meta.duration, sequence_sample_rate))
+        sequence_fractions_used = sequence_fractions(meta.duration, sequence_sample_rate)
+        sequence_frames = frames_at(path, sequence_fractions_used)
+        sequence = tuple(frame_vector(frame) for frame in sequence_frames if frame is not None)
+        sequence_fractions_used = [
+            fraction
+            for fraction, frame in zip(sequence_fractions_used, sequence_frames)
             if frame is not None
-        )
+        ]
 
     return Clip(
         path=path,
@@ -64,6 +73,7 @@ def read_clip(path: Path, sequence_sample_rate: float = 0.0) -> Clip | None:
         brightness=float(np.mean(mid_gray)),
         media_type="video",
         sequence=sequence,
+        sequence_times=fraction_times(meta.duration, sequence_fractions_used),
     )
 
 
@@ -89,4 +99,5 @@ def read_image_clip(path: Path, duration: float) -> Clip | None:
         brightness=float(np.mean(gray)),
         media_type="image",
         sequence=(vector,),
+        sequence_times=(0.0,),
     )
