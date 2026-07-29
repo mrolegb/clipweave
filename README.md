@@ -1,6 +1,6 @@
 # Clipweave
 
-Clipweave assembles a folder of short videos into one coherent montage. It filters by orientation and size, skips obvious duplicates, orders clips by visual continuity, and writes a browser/player-friendly H.264 MP4.
+Clipweave assembles a folder of short videos or images into one coherent montage. It filters by orientation and size, skips obvious duplicates, orders clips by visual continuity, and writes a browser/player-friendly H.264 MP4.
 
 ## Requirements
 
@@ -33,8 +33,8 @@ python clipweave.py "C:\montage\clips"
 By default this creates:
 
 ```text
-<input folder>\clipweave_vertical.mp4
-<input folder>\clipweave_vertical.manifest.json
+<input folder>\clipweave_videos_vertical.mp4
+<input folder>\clipweave_videos_vertical.manifest.json
 ```
 
 Intermediate normalized clips are created in a temporary directory and deleted automatically.
@@ -44,6 +44,7 @@ Intermediate normalized clips are created in a temporary directory and deleted a
 ```powershell
 python clipweave.py "D:\clips" `
   --orientation vertical `
+  --media videos `
   --audio remove `
   --max-duration 600 `
   --transition fade `
@@ -54,6 +55,12 @@ Important parameters:
 
 - `--orientation vertical|horizontal|any`  
   Chooses which clips are eligible. The final video uses the most common exact resolution among matching clips, so black bars are avoided.
+
+- `--media videos|images|mixed`  
+  `videos` is the default. Use `images` to build a slideshow, or `mixed` to combine videos and still images.
+
+- `--image-duration SECONDS`  
+  Duration for each still image. Default is `3`.
 
 - `--audio remove|keep`  
   `remove` is the default. Fade transitions are only used when audio is removed; with audio kept, clips are joined with hard cuts to avoid audio artifacts.
@@ -81,7 +88,7 @@ Important parameters:
 
 ## Selection Rules
 
-Clipweave reads each candidate video at the start, middle, and end. It uses those frames to:
+Clipweave reads each candidate video or image and samples visual vectors. For videos it samples the start, middle, and end; for images the same still frame is used throughout. It uses those vectors to:
 
 - remove exact file duplicates;
 - remove strong visual duplicates;
@@ -90,6 +97,8 @@ Clipweave reads each candidate video at the start, middle, and end. It uses thos
 - shorten fade duration when the outgoing and incoming frames are already similar.
 
 It does not crop clips or choose sub-ranges inside clips. Every selected clip is used from start to finish.
+
+For image slideshows, each selected image is converted into a still video segment using `--image-duration`.
 
 ## Output
 

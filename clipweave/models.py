@@ -26,6 +26,7 @@ class Clip:
     mid: np.ndarray
     end: np.ndarray
     brightness: float
+    media_type: str = "video"
 
     @property
     def width(self) -> int:

@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from .models import VideoMeta
 
@@ -58,3 +59,10 @@ def frame_at(path: Path, fraction: float):
     ok, frame = cap.read()
     cap.release()
     return frame if ok else None
+
+
+def read_image(path: Path):
+    data = np.fromfile(str(path), dtype=np.uint8)
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, cv2.IMREAD_COLOR)

@@ -9,7 +9,9 @@ class BuildOptions:
     input_dir: Path
     output: Path | None
     orientation: str = "vertical"
+    media: str = "videos"
     audio: str = "remove"
+    image_duration: float = 3.0
     max_duration: float | None = None
     work_dir: Path | None = None
     keep_work: bool = False
@@ -28,7 +30,7 @@ class BuildOptions:
 
     @property
     def output_path(self) -> Path:
-        return self.output or (self.resolved_input_dir / f"clipweave_{self.orientation}.mp4")
+        return self.output or (self.resolved_input_dir / f"clipweave_{self.media}_{self.orientation}.mp4")
 
     @property
     def keep_audio(self) -> bool:

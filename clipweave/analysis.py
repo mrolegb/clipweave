@@ -5,8 +5,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .media import file_sha1, frame_at, probe_video
-from .models import Clip
+from .media import file_sha1, frame_at, probe_video, read_image
+from .models import Clip, VideoMeta
 
 
 def frame_vector(frame) -> np.ndarray:
@@ -38,4 +38,28 @@ def read_clip(path: Path) -> Clip | None:
         mid=frame_vector(frames[1]),
         end=frame_vector(frames[2]),
         brightness=float(np.mean(mid_gray)),
+        media_type="video",
+    )
+
+
+def read_image_clip(path: Path, duration: float) -> Clip | None:
+    frame = read_image(path)
+    if frame is None:
+        return None
+
+    height, width = frame.shape[:2]
+    if not width or not height:
+        return None
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    vector = frame_vector(frame)
+    return Clip(
+        path=path,
+        meta=VideoMeta(width=width, height=height, duration=duration),
+        file_hash=file_sha1(path),
+        start=vector,
+        mid=vector,
+        end=vector,
+        brightness=float(np.mean(gray)),
+        media_type="image",
     )

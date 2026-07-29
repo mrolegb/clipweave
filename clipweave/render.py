@@ -37,7 +37,7 @@ def normalize_clip(
         "-i",
         str(src),
         "-vf",
-        f"scale={width}:{height}:flags=lanczos,setsar=1,fps=30,format=yuv420p",
+        f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30,format=yuv420p",
     ]
     if keep_audio:
         command += ["-c:a", "aac", "-b:a", "192k"]
@@ -59,6 +59,62 @@ def normalize_clip(
         str(dst),
     ]
     run(command)
+
+
+def normalize_image(
+    src: Path,
+    dst: Path,
+    dimensions: tuple[int, int],
+    duration: float,
+    crf: int,
+    preset: str,
+) -> None:
+    width, height = dimensions
+    run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-loop",
+            "1",
+            "-t",
+            f"{duration:.3f}",
+            "-i",
+            str(src),
+            "-vf",
+            f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30,format=yuv420p",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-profile:v",
+            "high",
+            "-pix_fmt",
+            "yuv420p",
+            "-preset",
+            preset,
+            "-crf",
+            str(crf),
+            "-movflags",
+            "+faststart",
+            str(dst),
+        ]
+    )
+
+
+def normalize_source(
+    clip: Clip,
+    dst: Path,
+    dimensions: tuple[int, int],
+    keep_audio: bool,
+    crf: int,
+    preset: str,
+) -> None:
+    if clip.media_type == "image":
+        normalize_image(clip.path, dst, dimensions, clip.duration, crf, preset)
+        return
+    normalize_clip(clip.path, dst, dimensions, keep_audio, crf, preset)
 
 
 def concat_plain(clips: list[Path], output: Path, concat_file: Path) -> None:
@@ -128,6 +184,7 @@ def concat_xfade(
         cumulative += clips[index].duration - duration
         label = next_label
 
+    filters.append(f"{label}format=yuv420p[vout]")
     run(
         [
             "ffmpeg",
@@ -139,7 +196,7 @@ def concat_xfade(
             "-filter_complex",
             ";".join(filters),
             "-map",
-            label,
+            "[vout]",
             "-an",
             "-c:v",
             "libx264",

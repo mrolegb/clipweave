@@ -5,11 +5,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from .analysis import read_clip
+from .analysis import read_clip, read_image_clip
 from .config import BuildOptions
-from .constants import VIDEO_EXTS
+from .constants import IMAGE_EXTS, VIDEO_EXTS
 from .models import Clip, Transition
-from .render import concat_plain, concat_xfade, normalize_clip
+from .render import concat_plain, concat_xfade, normalize_source
 from .selection import (
     apply_duration_limit,
     choose_dimensions,
@@ -19,21 +19,26 @@ from .selection import (
 )
 
 
-def discover_clips(input_dir: Path, orientation: str) -> list[Clip]:
+def discover_clips(input_dir: Path, options: BuildOptions) -> list[Clip]:
     clips = []
     for path in sorted(input_dir.iterdir()):
-        if not path.is_file() or path.suffix.lower() not in VIDEO_EXTS:
+        if not path.is_file():
             continue
         if path.name.startswith("clipweave_"):
             continue
-        clip = read_clip(path)
-        if clip and orientation_ok(clip, orientation):
+        suffix = path.suffix.lower()
+        clip = None
+        if options.media in {"videos", "mixed"} and suffix in VIDEO_EXTS:
+            clip = read_clip(path)
+        elif options.media in {"images", "mixed"} and suffix in IMAGE_EXTS:
+            clip = read_image_clip(path, options.image_duration)
+        if clip and orientation_ok(clip, options.orientation):
             clips.append(clip)
     return clips
 
 
 def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], int]:
-    clips = discover_clips(options.resolved_input_dir, options.orientation)
+    clips = discover_clips(options.resolved_input_dir, options)
     if not clips:
         raise RuntimeError("No readable clips match the requested orientation.")
 
@@ -59,7 +64,7 @@ def render_video(
         normalized = []
         for index, clip in enumerate(clips, 1):
             path = temp_root / f"clip_{index:03d}.mp4"
-            normalize_clip(clip.path, path, dimensions, options.keep_audio, options.crf, options.preset)
+            normalize_source(clip, path, dimensions, options.keep_audio, options.crf, options.preset)
             normalized.append(path)
 
         if options.use_fades:
@@ -90,15 +95,17 @@ def build_manifest(
         "input_dir": str(options.resolved_input_dir),
         "output": str(options.output_path),
         "orientation": options.orientation,
+        "media": options.media,
         "dimensions": {"width": dimensions[0], "height": dimensions[1]},
         "audio": options.audio,
+        "image_duration": options.image_duration,
         "transition": options.transition if not options.keep_audio else "cut",
         "source_candidates": candidate_count,
         "selected_clips_count": len(clips),
         "selected_clips_duration_sum": round(sum(clip.duration for clip in clips), 3),
         "output_duration_is_shorter_by_fades": options.use_fades,
         "selected_clips": [
-            {"file": str(clip.path), "duration": round(clip.duration, 3)}
+            {"file": str(clip.path), "duration": round(clip.duration, 3), "media_type": clip.media_type}
             for clip in clips
         ],
         "transitions": [transition.to_manifest() for transition in transitions],
