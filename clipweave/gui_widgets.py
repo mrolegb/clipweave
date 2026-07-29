@@ -19,8 +19,28 @@ OPTION_FIELD_HEIGHT = 30
 PATH_FIELD_HEIGHT = 30
 OPTION_CELL_HEIGHT = 45
 OPTION_COLUMN_WIDTH = 540
-INPUT_PADDING = "6px 10px"
-INPUT_STYLE = f"QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ padding: {INPUT_PADDING}; }}"
+INPUT_HORIZONTAL_PADDING = 10
+INPUT_STYLE = f"""
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+    padding-top: 0px;
+    padding-bottom: 0px;
+    padding-left: {INPUT_HORIZONTAL_PADDING}px;
+    padding-right: {INPUT_HORIZONTAL_PADDING}px;
+}}
+QComboBox {{
+    padding-right: 28px;
+}}
+QComboBox::drop-down {{
+    width: 24px;
+}}
+QSpinBox, QDoubleSpinBox {{
+    padding-right: 24px;
+}}
+QSpinBox::up-button, QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+    width: 18px;
+}}
+"""
 
 
 def label_with_hint(title: str, hint: str) -> QWidget:

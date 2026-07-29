@@ -113,7 +113,8 @@ class GuiTests(unittest.TestCase):
         """Text, dropdown, and numeric inputs should use one shared field style."""
         self.assertEqual(self.window.input_edit.styleSheet(), self.window.media_combo.styleSheet())
         self.assertEqual(self.window.media_combo.styleSheet(), self.window.image_duration_spin.styleSheet())
-        self.assertIn("padding: 6px 10px", self.window.input_edit.styleSheet())
+        self.assertIn("padding-top: 0px", self.window.input_edit.styleSheet())
+        self.assertIn("padding-left: 10px", self.window.input_edit.styleSheet())
 
     def test_layout_can_scroll_instead_of_overlapping(self) -> None:
         """The main form should scroll when it cannot fit vertically."""
