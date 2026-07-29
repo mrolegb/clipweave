@@ -121,6 +121,8 @@ Run the test suite locally with:
 python -m unittest discover -v
 ```
 
+GitHub Actions also runs the same compile and unit test checks on every push and pull request.
+
 The tests avoid real FFmpeg work and cover:
 
 - option parsing and default output behavior;
