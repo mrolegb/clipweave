@@ -89,7 +89,7 @@ Clipweave runs locally. It does not call external APIs or upload media. The only
 
 ## Desktop UI
 
-The command line tool remains the primary interface, but the `feature/pyside-gui` branch also includes a small local desktop UI:
+The command line tool remains the primary interface, but Clipweave also includes a small local desktop UI:
 
 ```powershell
 python clipweave-gui.py
