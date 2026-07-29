@@ -117,8 +117,10 @@ class GuiTests(unittest.TestCase):
         self.assertIn("padding-top: 0px", self.window.input_edit.styleSheet())
         self.assertIn("padding-left: 10px", self.window.input_edit.styleSheet())
         self.assertEqual(self.window.input_edit.textMargins().left(), 10)
+        self.assertFalse(self.window.image_duration_spin.lineEdit().hasFrame())
         self.assertEqual(self.window.image_duration_spin.lineEdit().textMargins().left(), 10)
         self.assertEqual(self.window.image_duration_spin.lineEdit().textMargins().right(), 10)
+        self.assertIn("background: transparent", self.window.image_duration_spin.lineEdit().styleSheet())
         self.assertEqual(self.window.image_duration_spin.buttonSymbols(), QAbstractSpinBox.ButtonSymbols.NoButtons)
 
     def test_layout_can_scroll_instead_of_overlapping(self) -> None:

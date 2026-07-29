@@ -22,17 +22,26 @@ PATH_FIELD_HEIGHT = 30
 OPTION_CELL_HEIGHT = 45
 OPTION_COLUMN_WIDTH = 540
 INPUT_HORIZONTAL_PADDING = 10
+SPIN_INNER_STYLE = "QLineEdit { border: none; background: transparent; padding: 0px; }"
 INPUT_STYLE = f"""
-QLineEdit, QComboBox {{
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+    background-color: #2b2b2b;
+    border: 1px solid #3f3f3f;
+    border-radius: 4px;
+    color: #ffffff;
     padding-top: 0px;
     padding-bottom: 0px;
     padding-left: {INPUT_HORIZONTAL_PADDING}px;
     padding-right: {INPUT_HORIZONTAL_PADDING}px;
 }}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+    border: 1px solid #b15cc6;
+}}
 QComboBox {{
     padding-right: 28px;
 }}
 QComboBox::drop-down {{
+    border-left: 1px solid #3f3f3f;
     width: 24px;
 }}
 QSpinBox, QDoubleSpinBox {{
@@ -121,6 +130,8 @@ def style_spin(control: QSpinBox | QDoubleSpinBox) -> None:
     """Apply the same sizing and padding to all numeric option controls."""
     control.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
     style_field(control, height=OPTION_FIELD_HEIGHT, fixed=True)
+    control.lineEdit().setFrame(False)
+    control.lineEdit().setStyleSheet(SPIN_INNER_STYLE)
     control.lineEdit().setTextMargins(INPUT_HORIZONTAL_PADDING, 0, INPUT_HORIZONTAL_PADDING, 0)
 
 
