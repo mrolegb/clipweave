@@ -127,6 +127,8 @@ python -m unittest discover -v
 
 GitHub Actions also runs the same compile and unit test checks on every push and pull request.
 
+When `main` is updated, GitHub Actions builds Windows CLI and GUI binaries and publishes them as the `clipweave-windows` workflow artifact.
+
 The tests avoid real FFmpeg work and cover:
 
 - option parsing and default output behavior;

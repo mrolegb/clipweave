@@ -1,0 +1,49 @@
+name: Windows Binary
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows binary
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Build CLI binary
+        run: pyinstaller --onefile --name clipweave clipweave.py
+
+      - name: Build GUI binary
+        run: pyinstaller --onefile --windowed --name clipweave-gui --add-data "assets;assets" clipweave-gui.py
+
+      - name: Package binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item dist/clipweave.exe package/
+          Copy-Item dist/clipweave-gui.exe package/
+          Copy-Item README.md package/
+          Compress-Archive -Path package/* -DestinationPath clipweave-windows.zip -Force
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipweave-windows
+          path: clipweave-windows.zip
+          if-no-files-found: error
