@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .analysis import read_clip, read_image_clip
 from .config import BuildOptions
-from .constants import IMAGE_EXTS, VIDEO_EXTS
+from .constants import IMAGE_EXTS, OUTPUT_PREFIX, VIDEO_EXTS
 from .contact_sheet import save_contact_sheet
 from .models import Clip, Transition
 from .render import concat_plain, concat_xfade, normalize_source
@@ -30,7 +30,7 @@ def discover_clips(input_dir: Path, options: BuildOptions) -> list[Clip]:
     for path in sorted(input_dir.iterdir()):
         if not path.is_file():
             continue
-        if path.name.startswith("clipweave_"):
+        if path.name.startswith(OUTPUT_PREFIX):
             continue
         suffix = path.suffix.lower()
         clip = None
@@ -67,6 +67,7 @@ def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> tuple[list
         options.smart_threshold,
         options.smart_max_known_ratio,
         options.smart_min_segment_duration,
+        options.smart_scene_threshold,
     )
     trim_count = len(selected)
     if options.smart_dedupe_segments:
@@ -170,6 +171,7 @@ def build_manifest(
         "smart_threshold": options.smart_threshold if options.smart_editing else None,
         "smart_max_known_ratio": options.smart_max_known_ratio if options.smart_editing else None,
         "smart_min_segment_duration": options.smart_min_segment_duration if options.smart_editing else None,
+        "smart_scene_threshold": options.smart_scene_threshold if options.smart_editing else None,
         "smart_reorder_segments": options.smart_reorder_segments if options.smart_editing else None,
         "smart_dedupe_segments": options.smart_dedupe_segments if options.smart_editing else None,
         "target": str(options.target) if options.target else None,

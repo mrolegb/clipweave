@@ -3,6 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .constants import OUTPUT_PREFIX
+
+
+def prefixed_output_path(path: Path) -> Path:
+    """Return an output path whose filename uses Clipweave's fixed generated-file prefix."""
+    if path.name.startswith(OUTPUT_PREFIX):
+        return path
+    return path.with_name(f"{OUTPUT_PREFIX}{path.name}")
+
 
 @dataclass(frozen=True)
 class BuildOptions:
@@ -34,6 +43,7 @@ class BuildOptions:
     smart_threshold: float = 0.94
     smart_max_known_ratio: float = 0.55
     smart_min_segment_duration: float = 2.0
+    smart_scene_threshold: float = 0.55
     smart_reorder_segments: bool = True
     smart_dedupe_segments: bool = True
 
@@ -45,7 +55,7 @@ class BuildOptions:
     @property
     def output_path(self) -> Path:
         """Explicit output path, or the default output inside the input folder."""
-        return self.output or (self.resolved_input_dir / f"clipweave_{self.media}_{self.orientation}.mp4")
+        return prefixed_output_path(self.output) if self.output else self.resolved_input_dir / f"{OUTPUT_PREFIX}{self.media}_{self.orientation}.mp4"
 
     @property
     def keep_audio(self) -> bool:

@@ -220,7 +220,7 @@ Important parameters:
   Upper limit for selected source material. Whole clips are used; clips are not trimmed to fit the limit.
 
 - `--output PATH`  
-  Output path. Default is the input folder.
+  Output path. Default is the input folder. Output filenames always receive the fixed `clipweave_` prefix, and files with that prefix are ignored as source media.
 
 - `--save-manifest`
   Write `<output>.manifest.json` next to the video. Without this flag, the CLI still prints the manifest but does not save it.
@@ -237,8 +237,8 @@ Important parameters:
 - `--smart-editing`
   Samples each video across its timeline and trims or skips clips whose frames are mostly already represented by earlier selected clips. This keeps more of the final montage focused on new visual material.
 
-- `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, `--smart-max-known-ratio FLOAT`, and `--smart-min-segment-duration FLOAT`
-  Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, `0.55` maximum already-known frame ratio, and `2.0` seconds minimum salvaged segment length.
+- `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, `--smart-max-known-ratio FLOAT`, `--smart-min-segment-duration FLOAT`, and `--smart-scene-threshold FLOAT`
+  Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, `0.55` maximum already-known frame ratio, `2.0` seconds minimum salvaged segment length, and `0.55` adjacent-frame scene split similarity.
 
 - `--no-smart-reorder-segments`
   By default, smart editing runs a second visual ordering pass after segment trimming. This flag keeps salvaged segments in the first-pass clip order.

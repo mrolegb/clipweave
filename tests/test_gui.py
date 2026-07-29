@@ -66,6 +66,7 @@ class GuiTests(unittest.TestCase):
         """Smart editing details should stay disabled until the flag is enabled."""
         self.assertFalse(self.window.smart_max_known_ratio_spin.isEnabled())
         self.assertFalse(self.window.smart_min_segment_duration_spin.isEnabled())
+        self.assertFalse(self.window.smart_scene_threshold_spin.isEnabled())
         self.assertFalse(self.window.smart_dedupe_segments_check.isEnabled())
         self.assertFalse(self.window.smart_reorder_segments_check.isEnabled())
 
@@ -73,6 +74,7 @@ class GuiTests(unittest.TestCase):
 
         self.assertTrue(self.window.smart_max_known_ratio_spin.isEnabled())
         self.assertTrue(self.window.smart_min_segment_duration_spin.isEnabled())
+        self.assertTrue(self.window.smart_scene_threshold_spin.isEnabled())
         self.assertTrue(self.window.smart_dedupe_segments_check.isEnabled())
         self.assertTrue(self.window.smart_reorder_segments_check.isEnabled())
 
@@ -110,6 +112,7 @@ class GuiTests(unittest.TestCase):
         self.window.smart_editing_check.setChecked(True)
         self.window.smart_max_known_ratio_spin.setValue(0.4)
         self.window.smart_min_segment_duration_spin.setValue(3.5)
+        self.window.smart_scene_threshold_spin.setValue(0.6)
         self.window.save_manifest_check.setChecked(True)
         self.window.save_contact_sheet_check.setChecked(True)
         self.window.max_duration_spin.setValue(12.5)
@@ -126,6 +129,7 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(options.smart_editing)
         self.assertEqual(options.smart_max_known_ratio, 0.4)
         self.assertEqual(options.smart_min_segment_duration, 3.5)
+        self.assertEqual(options.smart_scene_threshold, 0.6)
         self.assertTrue(options.smart_dedupe_segments)
         self.assertTrue(options.smart_reorder_segments)
         self.assertTrue(options.save_manifest)

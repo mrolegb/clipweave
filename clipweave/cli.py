@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-duration", type=float, default=None, help="Maximum output duration in seconds.")
     parser.add_argument("--target", type=Path, default=None, help="Reference image/video used to reject off-theme media.")
     parser.add_argument("--target-threshold", type=float, default=0.35, help="Minimum visual similarity to --target.")
-    parser.add_argument("--output", type=Path, default=None, help="Default: <input_dir>/clipweave_<media>_<orientation>.mp4")
+    parser.add_argument("--output", type=Path, default=None, help="Default: <input_dir>/clipweave_<media>_<orientation>.mp4. Filename is always prefixed with clipweave_.")
     parser.add_argument("--work-dir", type=Path, default=None, help="Default: temporary directory, deleted after build.")
     parser.add_argument("--keep-work", action="store_true")
     parser.add_argument("--transition", choices=["fade", "cut"], default="fade")
@@ -46,6 +46,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=2.0,
         help="Minimum salvaged segment length when smart editing trims repeated clips.",
+    )
+    parser.add_argument(
+        "--smart-scene-threshold",
+        type=float,
+        default=0.55,
+        help="Split smart-edited clips when adjacent sampled frames fall below this similarity.",
     )
     parser.add_argument(
         "--no-smart-reorder-segments",
@@ -91,6 +97,7 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         smart_threshold=args.smart_threshold,
         smart_max_known_ratio=args.smart_max_known_ratio,
         smart_min_segment_duration=args.smart_min_segment_duration,
+        smart_scene_threshold=args.smart_scene_threshold,
         smart_reorder_segments=args.smart_reorder_segments,
         smart_dedupe_segments=args.smart_dedupe_segments,
     )

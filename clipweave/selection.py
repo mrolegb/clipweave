@@ -131,6 +131,45 @@ def novel_ranges(flags: list[bool]) -> list[tuple[int, int]]:
     return ranges
 
 
+def scene_ranges(sequence: tuple[np.ndarray, ...], threshold: float) -> list[tuple[int, int]]:
+    """Split sampled frames into rough scene ranges using adjacent-frame similarity."""
+    if not sequence:
+        return []
+    ranges: list[tuple[int, int]] = []
+    start = 0
+    for index in range(1, len(sequence)):
+        if correlation(sequence[index - 1], sequence[index]) < threshold:
+            ranges.append((start, index - 1))
+            start = index
+    ranges.append((start, len(sequence) - 1))
+    return ranges
+
+
+def range_known_ratio(flags: list[bool], start: int, end: int) -> float:
+    """Return the known-frame ratio inside an inclusive sampled-frame range."""
+    chunk = flags[start : end + 1]
+    return sum(chunk) / len(chunk) if chunk else 0.0
+
+
+def smart_segment_ranges(
+    sequence: tuple[np.ndarray, ...],
+    flags: list[bool],
+    max_known_ratio: float,
+    scene_threshold: float,
+) -> list[tuple[int, int]]:
+    """Choose scene-aware ranges that are fresh enough to keep."""
+    ranges = [
+        (start, end)
+        for start, end in scene_ranges(sequence, scene_threshold)
+        if range_known_ratio(flags, start, end) <= max_known_ratio
+    ]
+    if ranges:
+        return ranges
+    if range_known_ratio(flags, 0, len(flags) - 1) <= max_known_ratio:
+        return [(0, len(flags) - 1)]
+    return novel_ranges(flags)
+
+
 def clip_segment(clip: Clip, start_index: int, end_index: int) -> Clip:
     """Create a source-trimmed Clip from a sampled frame index range."""
     sequence = clip.sequence or (clip.start, clip.mid, clip.end)
@@ -166,21 +205,16 @@ def select_smart_sequences(
     threshold: float,
     max_known_ratio: float,
     min_segment_duration: float = 2.0,
+    scene_threshold: float = 0.55,
 ) -> list[Clip]:
-    """Keep whole clips when mostly fresh and salvage novel segments from repeated clips."""
+    """Split clips into scene-aware ranges, then keep ranges that are still visually fresh."""
     selected: list[Clip] = []
     known_frames: list[np.ndarray] = []
     for clip in clips:
         sequence = clip.sequence or (clip.start, clip.mid, clip.end)
         flags = known_frame_flags(sequence, known_frames, threshold)
         ratio = sum(flags) / len(flags) if flags else 0.0
-        if ratio <= max_known_ratio:
-            selected_clip = replace(clip, known_frame_ratio=ratio)
-            selected.append(selected_clip)
-            known_frames.extend(selected_clip.sequence or (selected_clip.start, selected_clip.mid, selected_clip.end))
-            continue
-
-        for start_index, end_index in novel_ranges(flags):
+        for start_index, end_index in smart_segment_ranges(sequence, flags, max_known_ratio, scene_threshold):
             selected_clip = replace(
                 clip_segment(clip, start_index, end_index),
                 known_frame_ratio=ratio,

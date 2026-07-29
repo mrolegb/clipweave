@@ -89,6 +89,7 @@ class MainWindow(QMainWindow):
         self.duplicate_threshold_spin = panel.duplicate_threshold_spin
         self.smart_max_known_ratio_spin = panel.smart_max_known_ratio_spin
         self.smart_min_segment_duration_spin = panel.smart_min_segment_duration_spin
+        self.smart_scene_threshold_spin = panel.smart_scene_threshold_spin
         self.crf_spin = panel.crf_spin
         self.preset_combo = panel.preset_combo
         self.keep_audio_check = panel.keep_audio_check
@@ -171,6 +172,7 @@ class MainWindow(QMainWindow):
             smart_editing=self.smart_editing_check.isChecked(),
             smart_max_known_ratio=self.smart_max_known_ratio_spin.value(),
             smart_min_segment_duration=self.smart_min_segment_duration_spin.value(),
+            smart_scene_threshold=self.smart_scene_threshold_spin.value(),
             smart_dedupe_segments=self.smart_dedupe_segments_check.isChecked(),
             smart_reorder_segments=self.smart_reorder_segments_check.isChecked(),
         )

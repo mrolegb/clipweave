@@ -88,6 +88,14 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(with_audio.keep_audio)
         self.assertFalse(with_audio.use_fades)
 
+    def test_explicit_output_path_gets_fixed_prefix(self) -> None:
+        """Generated output filenames always use the fixed Clipweave prefix."""
+        options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"))
+        already_prefixed = BuildOptions(input_dir=Path("."), output=Path("clipweave_out.mp4"))
+
+        self.assertEqual(options.output_path.name, "clipweave_out.mp4")
+        self.assertEqual(already_prefixed.output_path.name, "clipweave_out.mp4")
+
     def test_options_from_args_maps_all_public_flags(self) -> None:
         """CLI namespace values are carried into BuildOptions."""
         args = Namespace(
@@ -117,6 +125,7 @@ class ConfigTests(unittest.TestCase):
             smart_threshold=0.93,
             smart_max_known_ratio=0.4,
             smart_min_segment_duration=3.0,
+            smart_scene_threshold=0.6,
             smart_reorder_segments=False,
             smart_dedupe_segments=False,
         )
@@ -137,6 +146,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.smart_threshold, 0.93)
         self.assertEqual(options.smart_max_known_ratio, 0.4)
         self.assertEqual(options.smart_min_segment_duration, 3.0)
+        self.assertEqual(options.smart_scene_threshold, 0.6)
         self.assertFalse(options.smart_reorder_segments)
         self.assertFalse(options.smart_dedupe_segments)
 
@@ -249,7 +259,7 @@ class SelectionTests(unittest.TestCase):
         fresh = clip("fresh.mp4", sequence=(VFADE, VFADE, VFADE))
 
         self.assertEqual(known_frame_ratio(repeated, list(first.sequence), 0.94), 1.0)
-        selected = select_smart_sequences([first, repeated, fresh], threshold=0.94, max_known_ratio=0.55)
+        selected = select_smart_sequences([first, repeated, fresh], threshold=0.94, max_known_ratio=0.55, scene_threshold=-1.0)
 
         self.assertEqual([item.path.name for item in selected], ["first.mp4", "fresh.mp4"])
         self.assertEqual(selected[0].known_frame_ratio, 0.0)
@@ -269,12 +279,28 @@ class SelectionTests(unittest.TestCase):
             threshold=0.94,
             max_known_ratio=0.55,
             min_segment_duration=2.0,
+            scene_threshold=-1.0,
         )
 
         self.assertEqual([item.path.name for item in selected], ["first.mp4", "mixed.mp4"])
         self.assertEqual(selected[1].source_start, 5.0)
         self.assertEqual(selected[1].duration, 4.0)
         self.assertEqual(len(selected[1].sequence), 2)
+
+    def test_smart_sequence_splits_fresh_clips_on_scene_changes(self) -> None:
+        """Smart editing splits even fresh clips when sampled frames jump sharply."""
+        fresh = clip(
+            "fresh.mp4",
+            sequence=(V1, V1, V2, V2),
+            sequence_times=(0.0, 2.0, 4.0, 6.0),
+            duration=8.0,
+        )
+
+        selected = select_smart_sequences([fresh], threshold=0.94, max_known_ratio=0.55, scene_threshold=0.5)
+
+        self.assertEqual([item.path.name for item in selected], ["fresh.mp4", "fresh.mp4"])
+        self.assertEqual(selected[0].source_start, 0.0)
+        self.assertEqual(selected[1].source_start, 3.0)
 
     def test_smart_segments_are_reordered_after_salvage(self) -> None:
         """Smart editing can run a second visual ordering pass over salvaged segments."""
@@ -287,11 +313,11 @@ class SelectionTests(unittest.TestCase):
             duration=10.0,
         )
         fresh = clip("fresh.mp4", start=VFADE, end=V2, brightness=10, sequence=(V4, V4, V4))
-        options = BuildOptions(input_dir=Path("."), output=None, smart_editing=True)
+        options = BuildOptions(input_dir=Path("."), output=None, smart_editing=True, smart_scene_threshold=-1.0)
 
         selected, counts = order_and_smart_edit([base, repeated, fresh], options)
 
-        self.assertEqual([item.path.name for item in selected], ["base.mp4", "repeated.mp4", "fresh.mp4"])
+        self.assertEqual([item.path.name for item in selected], ["base.mp4", "fresh.mp4", "repeated.mp4"])
         self.assertEqual(counts["after_smart_trim"], 3)
         self.assertEqual(counts["after_smart_dedupe"], 3)
 
@@ -324,9 +350,11 @@ class PipelineTests(unittest.TestCase):
             video_path = root / "a.mp4"
             image_path = root / "b.jpg"
             output_path = root / "clipweave_videos_vertical.mp4"
+            prefixed_output_path = root / "clipweave_custom.mp4"
             video_path.write_text("video", encoding="utf-8")
             image_path.write_text("image", encoding="utf-8")
             output_path.write_text("output", encoding="utf-8")
+            prefixed_output_path.write_text("output", encoding="utf-8")
 
             with (
                 patch("clipweave.pipeline.read_clip", return_value=clip("a.mp4")),
@@ -359,7 +387,7 @@ class PipelineTests(unittest.TestCase):
             target,
         )
 
-        self.assertEqual(manifest["output"], "out.mp4")
+        self.assertEqual(manifest["output"], "clipweave_out.mp4")
         self.assertEqual(manifest["dimensions"], {"width": 1080, "height": 1920})
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["target_similarity"], 1.0)
@@ -383,10 +411,10 @@ class PipelineTests(unittest.TestCase):
                 patch("clipweave.pipeline.render_video", return_value=[]),
             ):
                 build_video(BuildOptions(input_dir=Path(tmp), output=output))
-                self.assertFalse(output.with_suffix(".manifest.json").exists())
+                self.assertFalse(output.with_name("clipweave_out.manifest.json").exists())
 
                 build_video(BuildOptions(input_dir=Path(tmp), output=output, save_manifest=True))
-                self.assertTrue(output.with_suffix(".manifest.json").exists())
+                self.assertTrue(output.with_name("clipweave_out.manifest.json").exists())
 
     def test_build_video_writes_contact_sheet_only_when_requested(self) -> None:
         """Contact sheet debug output is opt-in."""
