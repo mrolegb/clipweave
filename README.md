@@ -53,7 +53,6 @@ By default this creates:
 
 ```text
 <input folder>\clipweave_videos_vertical.mp4
-<input folder>\clipweave_videos_vertical.manifest.json
 ```
 
 Intermediate normalized clips are created in a temporary directory and deleted automatically.
@@ -107,7 +106,7 @@ The command line tool remains the primary interface, but Clipweave also includes
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 
@@ -140,7 +139,7 @@ When `main` is updated, GitHub Actions builds Windows CLI and GUI binaries and p
 The tests avoid real FFmpeg work and cover:
 
 - option parsing and default output behavior;
-- orientation, size, duplicate, target, ordering, and duration selection logic;
+- orientation, size, duplicate, target, smart editing, ordering, and duration selection logic;
 - fade duration decisions and manifest serialization;
 - media discovery behavior with mocked readers;
 - GUI field wiring, image-mode audio behavior, startup status, and asset resolution.
@@ -221,7 +220,13 @@ Important parameters:
   Upper limit for selected source material. Whole clips are used; clips are not trimmed to fit the limit.
 
 - `--output PATH`  
-  Output path. Default is the input folder.
+  Output path. Default is the input folder. Output filenames always receive the fixed `clipweave_` prefix, and files with that prefix are ignored as source media.
+
+- `--save-manifest`
+  Write `<output>.manifest.json` next to the video. Without this flag, the CLI still prints the manifest but does not save it.
+
+- `--save-contact-sheet`
+  Write `<output>.contact.jpg`, a debug image with one representative frame from every selected clip or trimmed segment.
 
 - `--transition fade|cut`  
   `fade` uses shorter fades when adjacent frames are visually similar.
@@ -229,8 +234,20 @@ Important parameters:
 - `--duplicate-threshold FLOAT`  
   Default `0.965`. Lower values remove more near-duplicates; higher values keep more clips.
 
-- `--order visual|name|duration`  
-  `visual` orders clips by similarity between the end of one clip and the start of the next.
+- `--smart-editing`
+  Samples each video across its timeline and trims or skips clips whose frames are mostly already represented by earlier selected clips. This keeps more of the final montage focused on new visual material.
+
+- `--smart-sample-rate FLOAT`, `--smart-threshold FLOAT`, `--smart-max-known-ratio FLOAT`, `--smart-min-segment-duration FLOAT`, and `--smart-scene-threshold FLOAT`
+  Tune smart editing. Defaults are `1.0` frame/sec, `0.94` similarity, `0.55` maximum already-known frame ratio, `2.0` seconds minimum salvaged segment length, and `0.55` adjacent-frame scene split similarity.
+
+- `--no-smart-reorder-segments`
+  By default, smart editing runs a second visual ordering pass after segment trimming. This flag keeps salvaged segments in the first-pass clip order.
+
+- `--no-smart-dedupe-segments`
+  By default, smart editing runs a second visual duplicate pass after segment trimming. This flag keeps all salvaged segments.
+
+- `--order visual|name|duration`
+  `visual` orders clips by transition similarity using boundary frames plus short sampled frame sequences. Trimmed segments from one source stay in source-time order.
 
 - `--crf N` and `--preset NAME`  
   Encoding quality controls. Default is `--crf 16 --preset slow`, which favors quality over speed.
@@ -245,7 +262,8 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - remove exact file duplicates;
 - remove strong visual duplicates;
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
-- order the selected clips by visual continuity;
+- optionally trim repeated clips to novel segments, or skip them when no useful segment remains, with `--smart-editing`;
+- order the selected clips by visual continuity while preserving source-time order inside trimmed segment groups;
 - shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally reject media below `--target-threshold` similarity to a target image/video.
 
@@ -255,4 +273,4 @@ For image slideshows, each selected image is converted into a still video segmen
 
 ## Output
 
-The output is H.264 MP4 with `yuv420p`, which should open in normal players, browsers, and editors. A JSON manifest is written next to the final video with selected clips, durations, dimensions, and transition lengths.
+The output is H.264 MP4 with `yuv420p`, which should open in normal players, browsers, and editors. With `--save-manifest`, a JSON manifest is written next to the final video with selected clips, durations, dimensions, and transition lengths. With `--save-contact-sheet`, a debug JPG contact sheet is written next to the final video.

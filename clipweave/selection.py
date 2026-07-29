@@ -1,9 +1,23 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
+
+import numpy as np
 
 from .analysis import correlation
-from .models import Clip
+from .models import Clip, VideoMeta
+
+
+def transition_similarity(previous: Clip, candidate: Clip) -> float:
+    """Score visual continuity using both boundary frames and short frame sequences."""
+    previous_tail = (previous.sequence or (previous.start, previous.mid, previous.end))[-3:]
+    candidate_head = (candidate.sequence or (candidate.start, candidate.mid, candidate.end))[:3]
+    pairs = zip(previous_tail, candidate_head)
+    sequence_scores = [correlation(left, right) for left, right in pairs]
+    sequence_score = sum(sequence_scores) / len(sequence_scores) if sequence_scores else correlation(previous.end, candidate.start)
+    boundary_score = correlation(previous.end, candidate.start)
+    return (boundary_score * 0.55) + (sequence_score * 0.45)
 
 
 def orientation_ok(clip: Clip, orientation: str) -> bool:
@@ -84,30 +98,181 @@ def filter_by_target(clips: list[Clip], target: Clip | None, threshold: float) -
     return [clip for clip in clips if target_similarity(clip, target) >= threshold]
 
 
+def known_frame_ratio(clip: Clip, known_frames: list[np.ndarray], threshold: float) -> float:
+    """Return the share of a clip's sampled sequence already represented by known frames."""
+    sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+    flags = known_frame_flags(sequence, known_frames, threshold)
+    return sum(flags) / len(flags) if flags else 0.0
+
+
+def known_frame_flags(
+    sequence: tuple[np.ndarray, ...],
+    known_frames: list[np.ndarray],
+    threshold: float,
+) -> list[bool]:
+    """Mark sampled frames that are visually represented by earlier selected frames."""
+    if not sequence or not known_frames:
+        return [False for _ in sequence]
+    return [max(correlation(frame, known) for known in known_frames) >= threshold for frame in sequence]
+
+
+def novel_ranges(flags: list[bool]) -> list[tuple[int, int]]:
+    """Return inclusive ranges of sampled frames that are not known yet."""
+    ranges: list[tuple[int, int]] = []
+    start = None
+    for index, is_known in enumerate(flags):
+        if not is_known and start is None:
+            start = index
+        elif is_known and start is not None:
+            ranges.append((start, index - 1))
+            start = None
+    if start is not None:
+        ranges.append((start, len(flags) - 1))
+    return ranges
+
+
+def scene_ranges(sequence: tuple[np.ndarray, ...], threshold: float) -> list[tuple[int, int]]:
+    """Split sampled frames into rough scene ranges using adjacent-frame similarity."""
+    if not sequence:
+        return []
+    ranges: list[tuple[int, int]] = []
+    start = 0
+    for index in range(1, len(sequence)):
+        if correlation(sequence[index - 1], sequence[index]) < threshold:
+            ranges.append((start, index - 1))
+            start = index
+    ranges.append((start, len(sequence) - 1))
+    return ranges
+
+
+def range_known_ratio(flags: list[bool], start: int, end: int) -> float:
+    """Return the known-frame ratio inside an inclusive sampled-frame range."""
+    chunk = flags[start : end + 1]
+    return sum(chunk) / len(chunk) if chunk else 0.0
+
+
+def smart_segment_ranges(
+    sequence: tuple[np.ndarray, ...],
+    flags: list[bool],
+    max_known_ratio: float,
+    scene_threshold: float,
+) -> list[tuple[int, int]]:
+    """Choose scene-aware ranges that are fresh enough to keep."""
+    ranges = [
+        (start, end)
+        for start, end in scene_ranges(sequence, scene_threshold)
+        if range_known_ratio(flags, start, end) <= max_known_ratio
+    ]
+    if ranges:
+        return ranges
+    if range_known_ratio(flags, 0, len(flags) - 1) <= max_known_ratio:
+        return [(0, len(flags) - 1)]
+    return novel_ranges(flags)
+
+
+def clip_segment(clip: Clip, start_index: int, end_index: int) -> Clip:
+    """Create a source-trimmed Clip from a sampled frame index range."""
+    sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+    times = clip.sequence_times
+    if len(times) != len(sequence):
+        step = clip.duration / max(1, len(sequence) - 1)
+        times = tuple(index * step for index in range(len(sequence)))
+
+    start_margin = (times[start_index] - times[start_index - 1]) / 2 if start_index > 0 else times[start_index]
+    if end_index + 1 < len(times):
+        end_margin = (times[end_index + 1] - times[end_index]) / 2
+    else:
+        end_margin = (times[end_index] - times[end_index - 1]) / 2 if end_index > 0 else clip.duration - times[end_index]
+    start = max(0.0, times[start_index] - start_margin)
+    end = min(clip.duration, times[end_index] + end_margin)
+    duration = max(0.0, end - start)
+    segment_sequence = sequence[start_index : end_index + 1]
+    mid_index = start_index + ((end_index - start_index) // 2)
+    return replace(
+        clip,
+        meta=VideoMeta(width=clip.width, height=clip.height, duration=duration),
+        start=sequence[start_index],
+        mid=sequence[mid_index],
+        end=sequence[end_index],
+        sequence=segment_sequence,
+        sequence_times=tuple(time - start for time in times[start_index : end_index + 1]),
+        source_start=clip.source_start + start,
+    )
+
+
+def select_smart_sequences(
+    clips: list[Clip],
+    threshold: float,
+    max_known_ratio: float,
+    min_segment_duration: float = 2.0,
+    scene_threshold: float = 0.55,
+) -> list[Clip]:
+    """Split clips into scene-aware ranges, then keep ranges that are still visually fresh."""
+    selected: list[Clip] = []
+    known_frames: list[np.ndarray] = []
+    for clip in clips:
+        sequence = clip.sequence or (clip.start, clip.mid, clip.end)
+        flags = known_frame_flags(sequence, known_frames, threshold)
+        ratio = sum(flags) / len(flags) if flags else 0.0
+        for start_index, end_index in smart_segment_ranges(sequence, flags, max_known_ratio, scene_threshold):
+            selected_clip = replace(
+                clip_segment(clip, start_index, end_index),
+                known_frame_ratio=ratio,
+            )
+            if selected_clip.duration < min_segment_duration:
+                continue
+            selected.append(selected_clip)
+            known_frames.extend(selected_clip.sequence)
+    return selected
+
+
+def select_unique_segments(
+    clips: list[Clip],
+    threshold: float,
+    max_known_ratio: float,
+) -> list[Clip]:
+    """Remove duplicated trimmed segments without collapsing segments from the same file."""
+    selected: list[Clip] = []
+    known_frames: list[np.ndarray] = []
+    for clip in clips:
+        ratio = known_frame_ratio(clip, known_frames, threshold)
+        if ratio <= max_known_ratio:
+            selected_clip = replace(clip, known_frame_ratio=ratio)
+            selected.append(selected_clip)
+            known_frames.extend(selected_clip.sequence or (selected_clip.start, selected_clip.mid, selected_clip.end))
+    return selected
+
+
 def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
     """Order clips by filename, duration, or greedy visual continuity."""
     if mode == "name":
-        return sorted(clips, key=lambda clip: clip.path.name)
+        return sorted(clips, key=lambda clip: (clip.path.name, clip.source_start))
     if mode == "duration":
-        return sorted(clips, key=lambda clip: (-clip.duration, clip.path.name))
+        return sorted(clips, key=lambda clip: (-clip.duration, clip.path.name, clip.source_start))
     if not clips:
         return []
 
-    unused = clips[:]
-    current = min(unused, key=lambda clip: (clip.brightness, -clip.duration))
-    ordered = [current]
-    unused.remove(current)
+    grouped: dict[str, list[Clip]] = {}
+    for clip in clips:
+        grouped.setdefault(str(clip.path), []).append(clip)
+    groups = [sorted(group, key=lambda clip: clip.source_start) for group in grouped.values()]
+
+    unused = groups[:]
+    current_group = min(unused, key=lambda group: (min(clip.brightness for clip in group), -sum(clip.duration for clip in group)))
+    ordered_groups = [current_group]
+    unused.remove(current_group)
     while unused:
-        current = min(
+        previous = ordered_groups[-1][-1]
+        current_group = min(
             unused,
-            key=lambda clip: (
-                1 - correlation(ordered[-1].end, clip.start),
-                abs(ordered[-1].brightness - clip.brightness),
+            key=lambda group: (
+                1 - transition_similarity(previous, group[0]),
+                abs(previous.brightness - group[0].brightness),
             ),
         )
-        ordered.append(current)
-        unused.remove(current)
-    return ordered
+        ordered_groups.append(current_group)
+        unused.remove(current_group)
+    return [clip for group in ordered_groups for clip in group]
 
 
 def apply_duration_limit(clips: list[Clip], max_duration: float | None) -> list[Clip]:

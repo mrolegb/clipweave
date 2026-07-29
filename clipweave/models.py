@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +32,10 @@ class Clip:
     end: np.ndarray
     brightness: float
     media_type: str = "video"
+    sequence: tuple[np.ndarray, ...] = field(default_factory=tuple)
+    sequence_times: tuple[float, ...] = field(default_factory=tuple)
+    source_start: float = 0.0
+    known_frame_ratio: float | None = None
 
     @property
     def width(self) -> int:
@@ -52,6 +56,11 @@ class Clip:
     def dimensions(self) -> tuple[int, int]:
         """Return source dimensions as (width, height)."""
         return self.meta.dimensions
+
+    @property
+    def trim_end(self) -> float:
+        """Source timestamp where this clip segment ends."""
+        return self.source_start + self.duration
 
 
 @dataclass(frozen=True)

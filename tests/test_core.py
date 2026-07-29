@@ -11,17 +11,21 @@ import numpy as np
 from clipweave.cli import options_from_args
 from clipweave.config import BuildOptions
 from clipweave.models import Clip, Transition, VideoMeta
-from clipweave.pipeline import build_manifest, discover_clips, read_target
+from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target
 from clipweave.render import fade_duration
 from clipweave.selection import (
     apply_duration_limit,
     choose_dimensions,
     filter_by_target,
     is_extension_duplicate,
+    known_frame_ratio,
     order_clips,
     orientation_ok,
     select_unique,
+    select_unique_segments,
+    select_smart_sequences,
     target_similarity,
+    transition_similarity,
 )
 
 
@@ -34,6 +38,7 @@ def vector(values: list[float]) -> np.ndarray:
 V1 = vector([1, 0, 0])
 V2 = vector([0, 1, 0])
 V3 = vector([0, 0, 1])
+V4 = vector([0.5, 0.5, 0.707])
 VMIX = vector([0.9, 0.1, 0])
 VFADE = vector([0.85, 0.52, 0])
 
@@ -50,6 +55,9 @@ def clip(
     end: np.ndarray = V1,
     brightness: float = 100.0,
     media_type: str = "video",
+    sequence: tuple[np.ndarray, ...] | None = None,
+    sequence_times: tuple[float, ...] | None = None,
+    source_start: float = 0.0,
 ) -> Clip:
     """Create a small Clip fixture without reading media files."""
     return Clip(
@@ -61,6 +69,9 @@ def clip(
         end=end,
         brightness=brightness,
         media_type=media_type,
+        sequence=sequence or (start, mid, end),
+        sequence_times=sequence_times or (0.0, duration / 2, duration),
+        source_start=source_start,
     )
 
 
@@ -76,6 +87,14 @@ class ConfigTests(unittest.TestCase):
         with_audio = BuildOptions(input_dir=Path("."), output=None, audio="keep")
         self.assertTrue(with_audio.keep_audio)
         self.assertFalse(with_audio.use_fades)
+
+    def test_explicit_output_path_gets_fixed_prefix(self) -> None:
+        """Generated output filenames always use the fixed Clipweave prefix."""
+        options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"))
+        already_prefixed = BuildOptions(input_dir=Path("."), output=Path("clipweave_out.mp4"))
+
+        self.assertEqual(options.output_path.name, "clipweave_out.mp4")
+        self.assertEqual(already_prefixed.output_path.name, "clipweave_out.mp4")
 
     def test_options_from_args_maps_all_public_flags(self) -> None:
         """CLI namespace values are carried into BuildOptions."""
@@ -99,6 +118,16 @@ class ConfigTests(unittest.TestCase):
             order="name",
             crf=18,
             preset="medium",
+            save_manifest=True,
+            save_contact_sheet=True,
+            smart_editing=True,
+            smart_sample_rate=2.0,
+            smart_threshold=0.93,
+            smart_max_known_ratio=0.4,
+            smart_min_segment_duration=3.0,
+            smart_scene_threshold=0.6,
+            smart_reorder_segments=False,
+            smart_dedupe_segments=False,
         )
 
         options = options_from_args(args)
@@ -110,6 +139,16 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.target_threshold, 0.5)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
+        self.assertTrue(options.save_manifest)
+        self.assertTrue(options.save_contact_sheet)
+        self.assertTrue(options.smart_editing)
+        self.assertEqual(options.smart_sample_rate, 2.0)
+        self.assertEqual(options.smart_threshold, 0.93)
+        self.assertEqual(options.smart_max_known_ratio, 0.4)
+        self.assertEqual(options.smart_min_segment_duration, 3.0)
+        self.assertEqual(options.smart_scene_threshold, 0.6)
+        self.assertFalse(options.smart_reorder_segments)
+        self.assertFalse(options.smart_dedupe_segments)
 
 
 class SelectionTests(unittest.TestCase):
@@ -185,12 +224,112 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual([item.path.name for item in order_clips([a, b, c], "duration")], ["a.mp4", "c.mp4", "b.mp4"])
         self.assertEqual([item.path.name for item in order_clips([a, b, c], "visual")], ["a.mp4", "c.mp4", "b.mp4"])
 
+    def test_visual_order_keeps_same_source_segments_chronological(self) -> None:
+        """Visual ordering treats trimmed segments from one source as a chronological run."""
+        later = clip("source.mp4", start=V3, end=V2, source_start=5.0, sequence=(V3, V2))
+        earlier = clip("source.mp4", start=V2, end=V1, source_start=1.0, sequence=(V2, V1))
+        bridge = clip("bridge.mp4", start=V1, end=V3, source_start=0.0, sequence=(V1, V3))
+
+        ordered = order_clips([later, bridge, earlier], "visual")
+
+        self.assertEqual(
+            [(item.path.name, item.source_start) for item in ordered],
+            [("source.mp4", 1.0), ("source.mp4", 5.0), ("bridge.mp4", 0.0)],
+        )
+
+    def test_transition_similarity_uses_more_than_boundary_frames(self) -> None:
+        """Visual ordering should not trust a single matching edge frame alone."""
+        previous = clip("previous.mp4", end=V1, sequence=(V2, V2, V1))
+        boundary_only = clip("boundary.mp4", start=V1, sequence=(V1, V3, V3))
+        sequence_match = clip("sequence.mp4", start=VFADE, sequence=(VFADE, V2, V2))
+
+        self.assertGreater(transition_similarity(previous, sequence_match), transition_similarity(previous, boundary_only))
+
     def test_duration_limit_keeps_whole_clips(self) -> None:
         """Duration limits skip clips that would exceed the cap after the first."""
         clips = [clip("a.mp4", duration=7), clip("b.mp4", duration=5), clip("c.mp4", duration=3)]
 
         self.assertEqual([item.path.name for item in apply_duration_limit(clips, 10)], ["a.mp4", "c.mp4"])
         self.assertEqual(apply_duration_limit(clips, None), clips)
+
+    def test_smart_sequence_dedupe_drops_mostly_known_clips(self) -> None:
+        """Smart editing skips clips whose sampled frames are mostly already present."""
+        first = clip("first.mp4", sequence=(V1, V2, V3))
+        repeated = clip("repeated.mp4", sequence=(V1, V2, VMIX))
+        fresh = clip("fresh.mp4", sequence=(VFADE, VFADE, VFADE))
+
+        self.assertEqual(known_frame_ratio(repeated, list(first.sequence), 0.94), 1.0)
+        selected = select_smart_sequences([first, repeated, fresh], threshold=0.94, max_known_ratio=0.55, scene_threshold=-1.0)
+
+        self.assertEqual([item.path.name for item in selected], ["first.mp4", "fresh.mp4"])
+        self.assertEqual(selected[0].known_frame_ratio, 0.0)
+
+    def test_smart_sequence_dedupe_salvages_novel_segments(self) -> None:
+        """Smart editing can trim repeated clips down to still-new sequences."""
+        first = clip("first.mp4", sequence=(V1, V2, V3))
+        repeated_with_new_end = clip(
+            "mixed.mp4",
+            sequence=(V1, V2, V3, VFADE, VFADE),
+            sequence_times=(0.0, 2.0, 4.0, 6.0, 8.0),
+            duration=10.0,
+        )
+
+        selected = select_smart_sequences(
+            [first, repeated_with_new_end],
+            threshold=0.94,
+            max_known_ratio=0.55,
+            min_segment_duration=2.0,
+            scene_threshold=-1.0,
+        )
+
+        self.assertEqual([item.path.name for item in selected], ["first.mp4", "mixed.mp4"])
+        self.assertEqual(selected[1].source_start, 5.0)
+        self.assertEqual(selected[1].duration, 4.0)
+        self.assertEqual(len(selected[1].sequence), 2)
+
+    def test_smart_sequence_splits_fresh_clips_on_scene_changes(self) -> None:
+        """Smart editing splits even fresh clips when sampled frames jump sharply."""
+        fresh = clip(
+            "fresh.mp4",
+            sequence=(V1, V1, V2, V2),
+            sequence_times=(0.0, 2.0, 4.0, 6.0),
+            duration=8.0,
+        )
+
+        selected = select_smart_sequences([fresh], threshold=0.94, max_known_ratio=0.55, scene_threshold=0.5)
+
+        self.assertEqual([item.path.name for item in selected], ["fresh.mp4", "fresh.mp4"])
+        self.assertEqual(selected[0].source_start, 0.0)
+        self.assertEqual(selected[1].source_start, 3.0)
+
+    def test_smart_segments_are_reordered_after_salvage(self) -> None:
+        """Smart editing can run a second visual ordering pass over salvaged segments."""
+        base = clip("base.mp4", start=V1, end=V1, brightness=10, sequence=(V1, V2, V3))
+        repeated = clip(
+            "repeated.mp4",
+            brightness=100,
+            sequence=(V1, V2, V3, VFADE, VFADE),
+            sequence_times=(0.0, 2.0, 4.0, 6.0, 8.0),
+            duration=10.0,
+        )
+        fresh = clip("fresh.mp4", start=VFADE, end=V2, brightness=10, sequence=(V4, V4, V4))
+        options = BuildOptions(input_dir=Path("."), output=None, smart_editing=True, smart_scene_threshold=-1.0)
+
+        selected, counts = order_and_smart_edit([base, repeated, fresh], options)
+
+        self.assertEqual([item.path.name for item in selected], ["base.mp4", "fresh.mp4", "repeated.mp4"])
+        self.assertEqual(counts["after_smart_trim"], 3)
+        self.assertEqual(counts["after_smart_dedupe"], 3)
+
+    def test_post_trim_segment_dedupe_ignores_file_hash(self) -> None:
+        """Post-trim dedupe removes visual repeats without dropping every segment from one source."""
+        first = clip("same.mp4", sequence=(V1, V1, V1), duration=3.0)
+        repeated = clip("same.mp4", sequence=(V1, VMIX, V1), duration=3.0)
+        fresh_same_file = clip("same.mp4", sequence=(V2, V2, V2), duration=3.0)
+
+        selected = select_unique_segments([first, repeated, fresh_same_file], threshold=0.94, max_known_ratio=0.55)
+
+        self.assertEqual([item.sequence[0].tolist() for item in selected], [V1.tolist(), V2.tolist()])
 
 
 class RenderTests(unittest.TestCase):
@@ -211,9 +350,11 @@ class PipelineTests(unittest.TestCase):
             video_path = root / "a.mp4"
             image_path = root / "b.jpg"
             output_path = root / "clipweave_videos_vertical.mp4"
+            prefixed_output_path = root / "clipweave_custom.mp4"
             video_path.write_text("video", encoding="utf-8")
             image_path.write_text("image", encoding="utf-8")
             output_path.write_text("output", encoding="utf-8")
+            prefixed_output_path.write_text("output", encoding="utf-8")
 
             with (
                 patch("clipweave.pipeline.read_clip", return_value=clip("a.mp4")),
@@ -246,11 +387,60 @@ class PipelineTests(unittest.TestCase):
             target,
         )
 
-        self.assertEqual(manifest["output"], "out.mp4")
+        self.assertEqual(manifest["output"], "clipweave_out.mp4")
         self.assertEqual(manifest["dimensions"], {"width": 1080, "height": 1920})
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["target_similarity"], 1.0)
         self.assertEqual(manifest["transitions"][0]["fade_seconds"], 0.123)
+
+    def test_build_video_writes_manifest_only_when_requested(self) -> None:
+        """Manifest JSON is opt-in even though build_video still returns manifest data."""
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.mp4"
+            selected = [clip("a.mp4", duration=1.0)]
+            counts = {
+                "after_size_filter": 1,
+                "after_orientation": 1,
+                "after_target_filter": 1,
+                "after_smart_filter": 1,
+                "after_smart_trim": None,
+                "after_smart_dedupe": None,
+            }
+            with (
+                patch("clipweave.pipeline.select_clips", return_value=(selected, (1080, 1920), counts, None)),
+                patch("clipweave.pipeline.render_video", return_value=[]),
+            ):
+                build_video(BuildOptions(input_dir=Path(tmp), output=output))
+                self.assertFalse(output.with_name("clipweave_out.manifest.json").exists())
+
+                build_video(BuildOptions(input_dir=Path(tmp), output=output, save_manifest=True))
+                self.assertTrue(output.with_name("clipweave_out.manifest.json").exists())
+
+    def test_build_video_writes_contact_sheet_only_when_requested(self) -> None:
+        """Contact sheet debug output is opt-in."""
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.mp4"
+            selected = [clip("a.mp4", duration=1.0)]
+            counts = {
+                "after_size_filter": 1,
+                "after_orientation": 1,
+                "after_target_filter": 1,
+                "after_smart_filter": 1,
+                "after_smart_trim": None,
+                "after_smart_dedupe": None,
+            }
+            with (
+                patch("clipweave.pipeline.select_clips", return_value=(selected, (1080, 1920), counts, None)),
+                patch("clipweave.pipeline.render_video", return_value=[]),
+                patch("clipweave.pipeline.save_contact_sheet", return_value=output.with_suffix(".contact.jpg")) as contact_sheet,
+            ):
+                manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output))
+                contact_sheet.assert_not_called()
+                self.assertNotIn("contact_sheet", manifest)
+
+                manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output, save_contact_sheet=True))
+                contact_sheet.assert_called_once()
+                self.assertEqual(manifest["contact_sheet"], str(output.with_suffix(".contact.jpg")))
 
 
 if __name__ == "__main__":
