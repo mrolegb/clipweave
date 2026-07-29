@@ -11,10 +11,18 @@ Clipweave assembles a folder of short videos or images into one coherent montage
 - Python packages:
 
 ```powershell
-python -m pip install opencv-python numpy
+python -m pip install -r requirements.txt
 ```
 
-The optional desktop UI also uses `PySide6`, included in `requirements.txt`.
+The desktop UI uses `PySide6`, which is included in `requirements.txt`.
+
+For a full local setup:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
 
 ## Project Layout
 
@@ -26,6 +34,9 @@ clipweave/analysis.py frame sampling and visual vectors
 clipweave/selection.py filtering, duplicate removal, ordering
 clipweave/render.py   FFmpeg normalization, fades, concatenation
 clipweave/media.py    FFprobe, frame reads, process helpers
+clipweave/gui.py      optional PySide desktop UI
+assets/               README/GUI banner and app icon
+tests/                unit tests for selection, manifest, render, CLI, and GUI wiring
 ```
 
 ## Basic Usage
@@ -70,6 +81,11 @@ mingw32-make -f Makefile.windows run INPUT=C:/path/to/clips
 ```
 
 All make targets expect `ffmpeg` and `ffprobe` to already be available in `PATH`.
+`make check` and the Windows `check` targets run Python compilation plus the unit test suite.
+
+## Local Only
+
+Clipweave runs locally. It does not call external APIs or upload media. The only external programs it expects at runtime are local `ffmpeg` and `ffprobe` binaries.
 
 ## Desktop UI
 
@@ -79,7 +95,7 @@ The command line tool remains the primary interface, but the `feature/pyside-gui
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, a project banner, and the app icon from `assets/clipweave-icon.png`. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 
@@ -96,6 +112,22 @@ pyinstaller --onefile clipweave.py
 
 FFmpeg is not bundled yet; installed binaries still expect `ffmpeg` and `ffprobe` in `PATH`.
 On Linux/macOS, use `--add-data "assets:assets"` instead.
+
+## Testing
+
+Run the test suite locally with:
+
+```powershell
+python -m unittest discover -v
+```
+
+The tests avoid real FFmpeg work and cover:
+
+- option parsing and default output behavior;
+- orientation, size, duplicate, target, ordering, and duration selection logic;
+- fade duration decisions and manifest serialization;
+- media discovery behavior with mocked readers;
+- GUI field wiring, image-mode audio behavior, startup status, and asset resolution.
 
 ## Video Montage
 
@@ -198,7 +230,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - remove strong visual duplicates;
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
 - order the selected clips by visual continuity;
-- shorten fade duration when the outgoing and incoming frames are already similar.
+- shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally reject media below `--target-threshold` similarity to a target image/video.
 
 It does not crop clips or choose sub-ranges inside clips. Every selected clip is used from start to finish.

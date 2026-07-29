@@ -47,7 +47,11 @@ def select_unique(clips: list[Clip], duplicate_threshold: float) -> list[Clip]:
     """Remove exact duplicates and strong visual duplicates, preferring longer clips."""
     by_hash: dict[str, Clip] = {}
     for clip in clips:
-        by_hash.setdefault(clip.file_hash, clip)
+        existing = by_hash.get(clip.file_hash)
+        if existing is None or clip.duration > existing.duration:
+            by_hash[clip.file_hash] = clip
+        elif clip.duration == existing.duration and clip.path.name < existing.path.name:
+            by_hash[clip.file_hash] = clip
 
     selected: list[Clip] = []
     for clip in sorted(by_hash.values(), key=lambda item: (-item.duration, item.path.name)):

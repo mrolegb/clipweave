@@ -31,7 +31,8 @@ install: venv
 	$(PIP) install -r requirements.txt
 
 check:
-	$(PYTHON) -m compileall .
+	$(PYTHON) -m compileall clipweave clipweave.py clipweave-gui.py tests
+	$(PYTHON) -m unittest discover -v
 
 run:
 	$(PY) clipweave.py "$(INPUT)" --media $(MEDIA) --orientation $(ORIENTATION) $(if $(MAX_DURATION),--max-duration $(MAX_DURATION),) $(if $(OUTPUT),--output "$(OUTPUT)",)
