@@ -34,7 +34,11 @@ clipweave/analysis.py frame sampling and visual vectors
 clipweave/selection.py filtering, duplicate removal, ordering
 clipweave/render.py   FFmpeg normalization, fades, concatenation
 clipweave/media.py    FFprobe, frame reads, process helpers
-clipweave/gui.py      optional PySide desktop UI
+clipweave/gui.py      PySide desktop UI entrypoint
+clipweave/gui_panels.py desktop UI path/options panels
+clipweave/gui_widgets.py shared desktop UI widgets and sizing
+clipweave/gui_worker.py desktop UI background build worker
+clipweave/gui_assets.py desktop UI asset path resolution
 assets/               README banner, GUI header banner, and app icon
 tests/                unit tests for selection, manifest, render, CLI, and GUI wiring
 ```

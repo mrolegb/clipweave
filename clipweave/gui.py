@@ -1,165 +1,104 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sys
-import traceback
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QObject, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
+from PySide6.QtCore import QThread, QUrl
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
-    QComboBox,
     QFileDialog,
     QFrame,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
-    QSizePolicy,
     QScrollArea,
-    QSpinBox,
-    QDoubleSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from .config import BuildOptions
-from .pipeline import build_video
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-def resource_path(relative_path: str) -> Path:
-    """Resolve a bundled asset path for source and PyInstaller builds."""
-    base = Path(getattr(sys, "_MEIPASS", PROJECT_ROOT))
-    return base / relative_path
-
-
-def ffmpeg_available() -> bool:
-    """Check that the external FFmpeg tools required by the renderer are available."""
-    return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
-
-
-class BuildWorker(QObject):
-    """Run Clipweave in a background thread so the UI stays responsive."""
-
-    finished = Signal(dict)
-    failed = Signal(str)
-
-    def __init__(self, options: BuildOptions) -> None:
-        super().__init__()
-        self.options = options
-
-    def run(self) -> None:
-        """Build the video and notify the UI with either a manifest or traceback."""
-        try:
-            self.finished.emit(build_video(self.options))
-        except Exception:
-            self.failed.emit(traceback.format_exc())
+from .gui_assets import resource_path
+from .gui_panels import OptionsPanel, PathsPanel
+from .gui_widgets import HeaderBanner
+from .gui_worker import BuildWorker, ffmpeg_available
 
 
 class MainWindow(QMainWindow):
-    """Small desktop UI for configuring and launching Clipweave builds."""
+    """Desktop UI for configuring and launching Clipweave builds."""
 
     def __init__(self) -> None:
         super().__init__()
         self.thread: QThread | None = None
         self.worker: BuildWorker | None = None
+
         self.setWindowTitle("Clipweave")
         self.setMinimumSize(1180, 860)
         icon_path = resource_path("assets/clipweave-icon.png")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
+
         self._build_ui()
         self._set_idle_state("Choose input media, then start a build.")
 
     def _build_ui(self) -> None:
-        """Create controls and layout for the main window."""
+        """Create the top-level layout and compose the reusable panels."""
         root = QWidget()
         layout = QVBoxLayout(root)
         layout.setSpacing(10)
 
-        self.banner_label = QLabel()
-        self.banner_label.setFixedHeight(120)
-        self.banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.banner_label.setStyleSheet("background: #15191d; border-radius: 6px;")
-        self.banner_pixmap = QPixmap(str(resource_path("assets/clipweave-app-banner.png")))
-        self._apply_banner_pixmap()
+        self.banner_label = HeaderBanner()
         layout.addWidget(self.banner_label)
 
-        paths = QGroupBox("Paths")
-        path_grid = QGridLayout(paths)
-        path_grid.setColumnStretch(1, 1)
-        self.input_edit = QLineEdit()
-        self.target_edit = QLineEdit()
-        self.output_edit = QLineEdit()
-        self._style_field(self.input_edit)
-        self._style_field(self.target_edit)
-        self._style_field(self.output_edit)
-        path_grid.addWidget(self._label_with_hint("Input folder", "Folder with source videos, images, or mixed media."), 0, 0)
-        path_grid.addWidget(self.input_edit, 0, 1)
-        path_grid.addWidget(self._browse_button(self.choose_input), 0, 2)
-        path_grid.addWidget(self._label_with_hint("Target", "Optional reference file used to reject visually distant media."), 1, 0)
-        path_grid.addWidget(self.target_edit, 1, 1)
-        target_actions = QHBoxLayout()
-        target_actions.addWidget(self._browse_button(self.choose_target))
-        target_actions.addWidget(self._small_button("Clear", self.target_edit.clear))
-        path_grid.addLayout(target_actions, 1, 2)
-        path_grid.addWidget(self._label_with_hint("Output", "Optional MP4 path. Empty means output goes into the input folder."), 2, 0)
-        path_grid.addWidget(self.output_edit, 2, 1)
-        output_actions = QHBoxLayout()
-        output_actions.addWidget(self._browse_button(self.choose_output))
-        output_actions.addWidget(self._small_button("Clear", self.output_edit.clear))
-        path_grid.addLayout(output_actions, 2, 2)
-        layout.addWidget(paths)
+        self.paths_panel = PathsPanel(self.choose_input, self.choose_target, self.choose_output)
+        self.input_edit = self.paths_panel.input_edit
+        self.target_edit = self.paths_panel.target_edit
+        self.output_edit = self.paths_panel.output_edit
+        layout.addWidget(self.paths_panel)
 
-        self.options_group = QGroupBox("Options")
-        self.options_group.setMinimumHeight(590)
-        self.option_grid = QGridLayout(self.options_group)
-        self.option_grid.setHorizontalSpacing(24)
-        self.option_grid.setVerticalSpacing(15)
-        self.media_combo = self._combo(["videos", "images", "mixed"])
-        self.media_combo.currentTextChanged.connect(self.on_media_changed)
-        self.orientation_combo = self._combo(["vertical", "horizontal", "any"])
-        self.order_combo = self._combo(["visual", "name", "duration"])
-        self.image_duration_spin = self._double_spin(0.1, 60.0, 3.0, 1)
-        self.max_duration_spin = self._double_spin(0.0, 24 * 60 * 60, 0.0, 1)
-        self.target_threshold_spin = self._double_spin(-1.0, 1.0, 0.35, 2)
-        self.duplicate_threshold_spin = self._double_spin(-1.0, 1.0, 0.965, 3)
-        self.crf_spin = self._int_spin(0, 35, 16)
-        self.preset_combo = self._combo(["ultrafast", "veryfast", "medium", "slow"])
-        self.preset_combo.setCurrentText("slow")
-        self.keep_audio_check = QCheckBox("Keep source audio")
-        self.keep_audio_check.toggled.connect(self.on_keep_audio_changed)
-        self.fade_transition_check = QCheckBox("Use fade transitions")
-        self.fade_transition_check.setChecked(True)
-        self.keep_work_check = QCheckBox("Keep temporary files")
-        self._style_checkbox(self.keep_audio_check)
-        self._style_checkbox(self.fade_transition_check)
-        self._style_checkbox(self.keep_work_check)
-
-        self._add_option(self.option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
-        self._add_option(self.option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
-        self._add_option(self.option_grid, 2, "Order", self.order_combo, "Sort by visual continuity, filename, or duration.")
-        self._add_option(self.option_grid, 3, "Image duration, sec", self.image_duration_spin, "How long each still image stays on screen.")
-        self._add_option(self.option_grid, 4, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
-        self._add_option(self.option_grid, 5, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
-        self._add_option(self.option_grid, 6, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
-        self._add_option(self.option_grid, 7, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
-        self._add_option(self.option_grid, 8, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
-        self._add_option(self.option_grid, 10, "Keep audio", self.keep_audio_check, "Use source audio instead of rendering a silent montage.")
-        self._add_option(self.option_grid, 11, "Fade transitions", self.fade_transition_check, "Blend clips visually. Disabled automatically when audio is kept.")
-        self._add_option(self.option_grid, 12, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
+        self.options_group = OptionsPanel()
+        self._expose_option_controls(self.options_group)
         layout.addWidget(self.options_group)
 
+        layout.addLayout(self._build_actions())
+        layout.addWidget(self._separator())
+
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setPlaceholderText("Build manifest and errors will appear here.")
+        self.log.setMinimumHeight(180)
+        self.status_label = QLabel()
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.log, 1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(root)
+        self.setCentralWidget(scroll)
+
+    def _expose_option_controls(self, panel: OptionsPanel) -> None:
+        """Expose panel controls on the window for simple tests and event handlers."""
+        self.option_grid = panel.option_grid
+        self.media_combo = panel.media_combo
+        self.orientation_combo = panel.orientation_combo
+        self.order_combo = panel.order_combo
+        self.image_duration_spin = panel.image_duration_spin
+        self.max_duration_spin = panel.max_duration_spin
+        self.target_threshold_spin = panel.target_threshold_spin
+        self.duplicate_threshold_spin = panel.duplicate_threshold_spin
+        self.crf_spin = panel.crf_spin
+        self.preset_combo = panel.preset_combo
+        self.keep_audio_check = panel.keep_audio_check
+        self.fade_transition_check = panel.fade_transition_check
+        self.keep_work_check = panel.keep_work_check
+
+    def _build_actions(self) -> QHBoxLayout:
+        """Create action buttons shown below the options panel."""
         actions = QHBoxLayout()
         self.build_button = QPushButton("Build")
         self.build_button.clicked.connect(self.start_build)
@@ -168,135 +107,13 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.build_button)
         actions.addWidget(self.open_output_button)
         actions.addStretch(1)
-        layout.addLayout(actions)
+        return actions
 
+    def _separator(self) -> QFrame:
+        """Create a horizontal separator between controls and log output."""
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
-        layout.addWidget(line)
-
-        self.status_label = QLabel()
-        self.log = QPlainTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setPlaceholderText("Build manifest and errors will appear here.")
-        self.log.setMinimumHeight(180)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.log, 1)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setWidget(root)
-        self.setCentralWidget(scroll)
-
-    def resizeEvent(self, event) -> None:
-        """Keep the banner crisp when the window changes size."""
-        super().resizeEvent(event)
-        self._apply_banner_pixmap()
-
-    def _apply_banner_pixmap(self) -> None:
-        """Scale the README banner into the GUI header."""
-        if not hasattr(self, "banner_label") or not hasattr(self, "banner_pixmap"):
-            return
-        if self.banner_pixmap.isNull():
-            self.banner_label.setText("Clipweave")
-            self.banner_label.setStyleSheet("font-size: 28px; font-weight: 700;")
-            return
-        size = self.banner_label.size()
-        if size.width() <= 1:
-            size.setWidth(1140)
-        size.setHeight(120)
-        scaled = self.banner_pixmap.scaled(
-            size,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self.banner_label.setPixmap(scaled)
-
-    def _label_with_hint(self, title: str, hint: str) -> QWidget:
-        """Create a field label with a visible short explanation."""
-        box = QWidget()
-        layout = QVBoxLayout(box)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-        label = QLabel(title)
-        label.setStyleSheet("font-weight: 600;")
-        help_label = QLabel(hint)
-        help_label.setWordWrap(True)
-        help_label.setStyleSheet("color: #7d8b98; font-size: 11px;")
-        layout.addWidget(label)
-        layout.addWidget(help_label)
-        return box
-
-    def _add_option(self, grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> None:
-        """Place one explained option into the two-column options grid."""
-        cell = QWidget()
-        layout = QVBoxLayout(cell)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(1)
-        layout.addWidget(self._label_with_hint(title, hint))
-        layout.addWidget(widget)
-        row = index // 2
-        column = index % 2
-        cell.setMinimumHeight(50)
-        grid.addWidget(cell, row, column)
-        grid.setRowMinimumHeight(row, 50)
-        grid.setColumnStretch(column, 1)
-        grid.setColumnMinimumWidth(column, 540)
-
-    def _style_field(self, widget: QWidget, height: int = 38, fixed: bool = False) -> None:
-        """Apply common sizing to input controls so they remain easy to use."""
-        widget.setMinimumHeight(height)
-        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        if fixed:
-            widget.setFixedHeight(height)
-
-    def _style_checkbox(self, checkbox: QCheckBox) -> None:
-        """Apply common sizing to boolean option controls."""
-        checkbox.setMinimumHeight(30)
-        checkbox.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-    def _browse_button(self, callback) -> QPushButton:
-        """Create a compact browse button wired to a file/folder picker callback."""
-        button = QPushButton("Browse")
-        button.clicked.connect(callback)
-        button.setMinimumHeight(38)
-        return button
-
-    def _small_button(self, text: str, callback) -> QPushButton:
-        """Create a compact utility button."""
-        button = QPushButton(text)
-        button.clicked.connect(callback)
-        button.setMinimumHeight(38)
-        return button
-
-    def _combo(self, values: list[str]) -> QComboBox:
-        """Create a combo box from a list of string values."""
-        combo = QComboBox()
-        combo.addItems(values)
-        self._style_field(combo, height=30, fixed=True)
-        combo.setStyleSheet("QComboBox { padding: 6px 10px; }")
-        return combo
-
-    def _double_spin(self, minimum: float, maximum: float, value: float, decimals: int) -> QDoubleSpinBox:
-        """Create a numeric control for float-valued options."""
-        spin = QDoubleSpinBox()
-        spin.setRange(minimum, maximum)
-        spin.setDecimals(decimals)
-        spin.setValue(value)
-        self._style_spin(spin)
-        return spin
-
-    def _int_spin(self, minimum: int, maximum: int, value: int) -> QSpinBox:
-        """Create a numeric control for integer-valued options."""
-        spin = QSpinBox()
-        spin.setRange(minimum, maximum)
-        spin.setValue(value)
-        self._style_spin(spin)
-        return spin
-
-    def _style_spin(self, spin: QSpinBox | QDoubleSpinBox) -> None:
-        """Apply the same sizing and padding to all numeric option controls."""
-        self._style_field(spin, height=30, fixed=True)
-        spin.setStyleSheet("QSpinBox, QDoubleSpinBox { padding: 6px 10px; }")
+        return line
 
     def choose_input(self) -> None:
         """Prompt for the source media directory."""
@@ -317,20 +134,12 @@ class MainWindow(QMainWindow):
             self.output_edit.setText(path)
 
     def on_media_changed(self, media: str) -> None:
-        """Keep option combinations valid when switching media modes."""
-        if media == "images":
-            self.keep_audio_check.setChecked(False)
-            self.keep_audio_check.setEnabled(False)
-        else:
-            self.keep_audio_check.setEnabled(True)
+        """Compatibility wrapper for tests and signal handlers."""
+        self.options_group.apply_media_rules(media)
 
     def on_keep_audio_changed(self, keep_audio: bool) -> None:
-        """Disable fades when source audio is preserved."""
-        if keep_audio:
-            self.fade_transition_check.setChecked(False)
-            self.fade_transition_check.setEnabled(False)
-        else:
-            self.fade_transition_check.setEnabled(True)
+        """Compatibility wrapper for tests and signal handlers."""
+        self.options_group.apply_audio_rules(keep_audio)
 
     def build_options(self) -> BuildOptions:
         """Read current UI state into BuildOptions."""
@@ -343,13 +152,13 @@ class MainWindow(QMainWindow):
             output=Path(output_text) if output_text else None,
             orientation=self.orientation_combo.currentText(),
             media=self.media_combo.currentText(),
-            audio="keep" if self.keep_audio_check.isChecked() else "remove",
+            audio=self.options_group.audio_value,
             image_duration=self.image_duration_spin.value(),
             max_duration=max_duration,
             target=Path(target_text) if target_text else None,
             target_threshold=self.target_threshold_spin.value(),
             keep_work=self.keep_work_check.isChecked(),
-            transition="fade" if self.fade_transition_check.isChecked() else "cut",
+            transition=self.options_group.transition_value,
             duplicate_threshold=self.duplicate_threshold_spin.value(),
             order=self.order_combo.currentText(),
             crf=self.crf_spin.value(),
