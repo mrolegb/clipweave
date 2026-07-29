@@ -12,10 +12,22 @@ Clipweave assembles a folder of short videos into one coherent montage. It filte
 python -m pip install opencv-python numpy
 ```
 
+## Project Layout
+
+```text
+clipweave.py          CLI entry point
+clipweave/cli.py      argument parsing
+clipweave/pipeline.py orchestration and manifest writing
+clipweave/analysis.py frame sampling and visual vectors
+clipweave/selection.py filtering, duplicate removal, ordering
+clipweave/render.py   FFmpeg normalization, fades, concatenation
+clipweave/media.py    FFprobe, frame reads, process helpers
+```
+
 ## Basic Usage
 
 ```powershell
-python clipweave.py "D:\stuff\grok-favorites\little"
+python clipweave.py "C:\montage\clips"
 ```
 
 By default this creates:

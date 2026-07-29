@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+from .media import file_sha1, frame_at, probe_video
+from .models import Clip
+
+
+def frame_vector(frame) -> np.ndarray:
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    small = cv2.resize(gray, (64, 96), interpolation=cv2.INTER_AREA).astype("float32").reshape(-1)
+    small -= small.mean()
+    return small / max(float(np.linalg.norm(small)), 1e-9)
+
+
+def correlation(left: np.ndarray, right: np.ndarray) -> float:
+    return float(np.dot(left, right))
+
+
+def read_clip(path: Path) -> Clip | None:
+    meta = probe_video(path)
+    if not meta.width or not meta.height or meta.duration <= 0:
+        return None
+
+    frames = [frame_at(path, fraction) for fraction in (0.04, 0.50, 0.96)]
+    if any(frame is None for frame in frames):
+        return None
+
+    mid_gray = cv2.cvtColor(frames[1], cv2.COLOR_BGR2GRAY)
+    return Clip(
+        path=path,
+        meta=meta,
+        file_hash=file_sha1(path),
+        start=frame_vector(frames[0]),
+        mid=frame_vector(frames[1]),
+        end=frame_vector(frames[2]),
+        brightness=float(np.mean(mid_gray)),
+    )
