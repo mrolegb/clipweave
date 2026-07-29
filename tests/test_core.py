@@ -25,6 +25,7 @@ from clipweave.selection import (
     select_unique_segments,
     select_smart_sequences,
     target_similarity,
+    transition_similarity,
 )
 
 
@@ -56,6 +57,7 @@ def clip(
     media_type: str = "video",
     sequence: tuple[np.ndarray, ...] | None = None,
     sequence_times: tuple[float, ...] | None = None,
+    source_start: float = 0.0,
 ) -> Clip:
     """Create a small Clip fixture without reading media files."""
     return Clip(
@@ -69,6 +71,7 @@ def clip(
         media_type=media_type,
         sequence=sequence or (start, mid, end),
         sequence_times=sequence_times or (0.0, duration / 2, duration),
+        source_start=source_start,
     )
 
 
@@ -207,6 +210,27 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual([item.path.name for item in order_clips([a, b, c], "duration")], ["a.mp4", "c.mp4", "b.mp4"])
         self.assertEqual([item.path.name for item in order_clips([a, b, c], "visual")], ["a.mp4", "c.mp4", "b.mp4"])
 
+    def test_visual_order_keeps_same_source_segments_chronological(self) -> None:
+        """Visual ordering treats trimmed segments from one source as a chronological run."""
+        later = clip("source.mp4", start=V3, end=V2, source_start=5.0, sequence=(V3, V2))
+        earlier = clip("source.mp4", start=V2, end=V1, source_start=1.0, sequence=(V2, V1))
+        bridge = clip("bridge.mp4", start=V1, end=V3, source_start=0.0, sequence=(V1, V3))
+
+        ordered = order_clips([later, bridge, earlier], "visual")
+
+        self.assertEqual(
+            [(item.path.name, item.source_start) for item in ordered],
+            [("source.mp4", 1.0), ("source.mp4", 5.0), ("bridge.mp4", 0.0)],
+        )
+
+    def test_transition_similarity_uses_more_than_boundary_frames(self) -> None:
+        """Visual ordering should not trust a single matching edge frame alone."""
+        previous = clip("previous.mp4", end=V1, sequence=(V2, V2, V1))
+        boundary_only = clip("boundary.mp4", start=V1, sequence=(V1, V3, V3))
+        sequence_match = clip("sequence.mp4", start=VFADE, sequence=(VFADE, V2, V2))
+
+        self.assertGreater(transition_similarity(previous, sequence_match), transition_similarity(previous, boundary_only))
+
     def test_duration_limit_keeps_whole_clips(self) -> None:
         """Duration limits skip clips that would exceed the cap after the first."""
         clips = [clip("a.mp4", duration=7), clip("b.mp4", duration=5), clip("c.mp4", duration=3)]
@@ -263,7 +287,7 @@ class SelectionTests(unittest.TestCase):
 
         selected, counts = order_and_smart_edit([base, repeated, fresh], options)
 
-        self.assertEqual([item.path.name for item in selected], ["base.mp4", "fresh.mp4", "repeated.mp4"])
+        self.assertEqual([item.path.name for item in selected], ["base.mp4", "repeated.mp4", "fresh.mp4"])
         self.assertEqual(counts["after_smart_trim"], 3)
         self.assertEqual(counts["after_smart_dedupe"], 3)
 

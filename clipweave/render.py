@@ -3,14 +3,14 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from .analysis import correlation
 from .media import run
 from .models import Clip, Transition
+from .selection import transition_similarity
 
 
 def fade_duration(prev: Clip, nxt: Clip, min_fade: float, max_fade: float) -> float:
     """Choose a shorter fade when adjacent frames are already visually similar."""
-    similarity = correlation(prev.end, nxt.start)
+    similarity = transition_similarity(prev, nxt)
     if similarity >= 0.90:
         return min_fade
     if similarity >= 0.82:
@@ -188,7 +188,7 @@ def concat_xfade(
             f"{label}[{index}:v]xfade=transition=fade:"
             f"duration={duration:.3f}:offset={offset:.3f}{next_label}"
         )
-        similarity = correlation(clips[index - 1].end, clips[index].start)
+        similarity = transition_similarity(clips[index - 1], clips[index])
         transitions.append(
             Transition(
                 source=clips[index - 1].path.name,

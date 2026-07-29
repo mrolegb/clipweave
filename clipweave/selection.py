@@ -9,6 +9,17 @@ from .analysis import correlation
 from .models import Clip, VideoMeta
 
 
+def transition_similarity(previous: Clip, candidate: Clip) -> float:
+    """Score visual continuity using both boundary frames and short frame sequences."""
+    previous_tail = (previous.sequence or (previous.start, previous.mid, previous.end))[-3:]
+    candidate_head = (candidate.sequence or (candidate.start, candidate.mid, candidate.end))[:3]
+    pairs = zip(previous_tail, candidate_head)
+    sequence_scores = [correlation(left, right) for left, right in pairs]
+    sequence_score = sum(sequence_scores) / len(sequence_scores) if sequence_scores else correlation(previous.end, candidate.start)
+    boundary_score = correlation(previous.end, candidate.start)
+    return (boundary_score * 0.55) + (sequence_score * 0.45)
+
+
 def orientation_ok(clip: Clip, orientation: str) -> bool:
     """Check whether a clip matches the requested orientation filter."""
     if orientation == "vertical":
@@ -201,27 +212,33 @@ def select_unique_segments(
 def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
     """Order clips by filename, duration, or greedy visual continuity."""
     if mode == "name":
-        return sorted(clips, key=lambda clip: clip.path.name)
+        return sorted(clips, key=lambda clip: (clip.path.name, clip.source_start))
     if mode == "duration":
-        return sorted(clips, key=lambda clip: (-clip.duration, clip.path.name))
+        return sorted(clips, key=lambda clip: (-clip.duration, clip.path.name, clip.source_start))
     if not clips:
         return []
 
-    unused = clips[:]
-    current = min(unused, key=lambda clip: (clip.brightness, -clip.duration))
-    ordered = [current]
-    unused.remove(current)
+    grouped: dict[str, list[Clip]] = {}
+    for clip in clips:
+        grouped.setdefault(str(clip.path), []).append(clip)
+    groups = [sorted(group, key=lambda clip: clip.source_start) for group in grouped.values()]
+
+    unused = groups[:]
+    current_group = min(unused, key=lambda group: (min(clip.brightness for clip in group), -sum(clip.duration for clip in group)))
+    ordered_groups = [current_group]
+    unused.remove(current_group)
     while unused:
-        current = min(
+        previous = ordered_groups[-1][-1]
+        current_group = min(
             unused,
-            key=lambda clip: (
-                1 - correlation(ordered[-1].end, clip.start),
-                abs(ordered[-1].brightness - clip.brightness),
+            key=lambda group: (
+                1 - transition_similarity(previous, group[0]),
+                abs(previous.brightness - group[0].brightness),
             ),
         )
-        ordered.append(current)
-        unused.remove(current)
-    return ordered
+        ordered_groups.append(current_group)
+        unused.remove(current_group)
+    return [clip for group in ordered_groups for clip in group]
 
 
 def apply_duration_limit(clips: list[Clip], max_duration: float | None) -> list[Clip]:

@@ -241,8 +241,8 @@ Important parameters:
 - `--no-smart-dedupe-segments`
   By default, smart editing runs a second visual duplicate pass after segment trimming. This flag keeps all salvaged segments.
 
-- `--order visual|name|duration`  
-  `visual` orders clips by similarity between the end of one clip and the start of the next.
+- `--order visual|name|duration`
+  `visual` orders clips by transition similarity using boundary frames plus short sampled frame sequences. Trimmed segments from one source stay in source-time order.
 
 - `--crf N` and `--preset NAME`  
   Encoding quality controls. Default is `--crf 16 --preset slow`, which favors quality over speed.
@@ -258,7 +258,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - remove strong visual duplicates;
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
 - optionally trim repeated clips to novel segments, or skip them when no useful segment remains, with `--smart-editing`;
-- order the selected clips by visual continuity;
+- order the selected clips by visual continuity while preserving source-time order inside trimmed segment groups;
 - shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally reject media below `--target-threshold` similarity to a target image/video.
 
