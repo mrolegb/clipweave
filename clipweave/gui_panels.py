@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLineEdit, QSpinBox
+from PySide6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLineEdit, QWidget
 
 from .gui_widgets import (
     add_option,
@@ -87,7 +87,9 @@ class OptionsPanel(QGroupBox):
 
         self.media_combo.currentTextChanged.connect(self.apply_media_rules)
         self.keep_audio_check.toggled.connect(self.apply_audio_rules)
+        self.option_cells: dict[str, QWidget] = {}
         self._populate()
+        self.apply_media_rules(self.media_combo.currentText())
 
     @property
     def audio_value(self) -> str:
@@ -100,32 +102,41 @@ class OptionsPanel(QGroupBox):
         return "fade" if self.fade_transition_check.isChecked() else "cut"
 
     def apply_media_rules(self, media: str) -> None:
-        """Disable audio controls for image-only slideshow mode."""
-        if media == "images":
+        """Enable only controls that apply to the selected media mode."""
+        images_possible = media in {"images", "mixed"}
+        audio_possible = media in {"videos", "mixed"}
+
+        self._set_option_enabled("image_duration", images_possible)
+        self._set_option_enabled("keep_audio", audio_possible)
+
+        if not audio_possible:
             self.keep_audio_check.setChecked(False)
-            self.keep_audio_check.setEnabled(False)
-        else:
-            self.keep_audio_check.setEnabled(True)
+        self.apply_audio_rules(self.keep_audio_check.isChecked())
 
     def apply_audio_rules(self, keep_audio: bool) -> None:
         """Disable fades when source audio is preserved."""
-        if keep_audio:
+        fade_available = not keep_audio
+        if not fade_available:
             self.fade_transition_check.setChecked(False)
-            self.fade_transition_check.setEnabled(False)
-        else:
-            self.fade_transition_check.setEnabled(True)
+        self._set_option_enabled("fade_transition", fade_available)
+
+    def _set_option_enabled(self, key: str, enabled: bool) -> None:
+        """Enable or disable a whole option cell when the setting is not applicable."""
+        cell = self.option_cells.get(key)
+        if cell is not None:
+            cell.setEnabled(enabled)
 
     def _populate(self) -> None:
         """Add option controls in visual order."""
-        add_option(self.option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
-        add_option(self.option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
-        add_option(self.option_grid, 2, "Order", self.order_combo, "Sort by visual continuity, filename, or duration.")
-        add_option(self.option_grid, 3, "Image duration, sec", self.image_duration_spin, "How long each still image stays on screen.")
-        add_option(self.option_grid, 4, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
-        add_option(self.option_grid, 5, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
-        add_option(self.option_grid, 6, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
-        add_option(self.option_grid, 7, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
-        add_option(self.option_grid, 8, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
-        add_option(self.option_grid, 10, "Keep audio", self.keep_audio_check, "Use source audio instead of rendering a silent montage.")
-        add_option(self.option_grid, 11, "Fade transitions", self.fade_transition_check, "Blend clips visually. Disabled automatically when audio is kept.")
-        add_option(self.option_grid, 12, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")
+        self.option_cells["media"] = add_option(self.option_grid, 0, "Media", self.media_combo, "Choose videos, image slideshow, or both.")
+        self.option_cells["orientation"] = add_option(self.option_grid, 1, "Orientation", self.orientation_combo, "Filter vertical, horizontal, or all formats.")
+        self.option_cells["order"] = add_option(self.option_grid, 2, "Order", self.order_combo, "Sort by visual continuity, filename, or duration.")
+        self.option_cells["image_duration"] = add_option(self.option_grid, 3, "Image duration, sec", self.image_duration_spin, "How long each still image stays on screen.")
+        self.option_cells["max_duration"] = add_option(self.option_grid, 4, "Max duration, sec", self.max_duration_spin, "Upper limit for selected media. 0 means no limit.")
+        self.option_cells["target_threshold"] = add_option(self.option_grid, 5, "Target threshold", self.target_threshold_spin, "Higher values keep only media closer to the target.")
+        self.option_cells["duplicate_threshold"] = add_option(self.option_grid, 6, "Duplicate threshold", self.duplicate_threshold_spin, "Higher values remove only very close visual duplicates.")
+        self.option_cells["crf"] = add_option(self.option_grid, 7, "CRF", self.crf_spin, "Encoding quality. Lower is larger and cleaner.")
+        self.option_cells["preset"] = add_option(self.option_grid, 8, "Preset", self.preset_combo, "Encoding speed preset. Slow favors compression quality.")
+        self.option_cells["keep_audio"] = add_option(self.option_grid, 10, "Keep audio", self.keep_audio_check, "Use source audio instead of rendering a silent montage.")
+        self.option_cells["fade_transition"] = add_option(self.option_grid, 11, "Fade transitions", self.fade_transition_check, "Blend clips visually. Disabled automatically when audio is kept.")
+        self.option_cells["keep_work"] = add_option(self.option_grid, 12, "Temporary files", self.keep_work_check, "Keep intermediate render files for debugging.")

@@ -135,7 +135,7 @@ def style_spin(control: QSpinBox | QDoubleSpinBox) -> None:
     control.lineEdit().setTextMargins(INPUT_HORIZONTAL_PADDING, 0, INPUT_HORIZONTAL_PADDING, 0)
 
 
-def add_option(grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> None:
+def add_option(grid: QGridLayout, index: int, title: str, widget: QWidget, hint: str) -> QWidget:
     """Place one explained option into the two-column options grid."""
     cell = QWidget()
     layout = QVBoxLayout(cell)
@@ -150,3 +150,4 @@ def add_option(grid: QGridLayout, index: int, title: str, widget: QWidget, hint:
     grid.setRowMinimumHeight(row, OPTION_CELL_HEIGHT)
     grid.setColumnStretch(column, 1)
     grid.setColumnMinimumWidth(column, OPTION_COLUMN_WIDTH)
+    return cell
