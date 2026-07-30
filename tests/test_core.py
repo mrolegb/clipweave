@@ -11,9 +11,10 @@ import numpy as np
 from clipweave.analysis import motion_score
 from clipweave.cli import options_from_args
 from clipweave.config import BuildOptions
+from clipweave.contact_sheet import LABEL_HEIGHT, PADDING, THUMB_HEIGHT, THUMB_WIDTH, fit_thumbnail, save_contact_sheet
 from clipweave.models import Clip, Transition, VideoMeta
-from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target
-from clipweave.render import fade_duration, grade_filter
+from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target, render_video
+from clipweave.render import fade_duration, grade_filter, normalize_clip, normalize_image
 from clipweave.selection import (
     apply_duration_limit,
     choose_dimensions,
@@ -262,6 +263,16 @@ class SelectionTests(unittest.TestCase):
 
         self.assertEqual([item.path.name for item in ordered], ["start.mp4", "high.mp4", "low.mp4"])
 
+    def test_visual_structure_arc_prefers_peak_motion_near_middle(self) -> None:
+        """Arc structure can choose higher-motion material after the opening clip."""
+        start = clip("start.mp4", brightness=10, end=V1, motion_score=0.0)
+        calm = clip("calm.mp4", brightness=20, start=VFADE, motion_score=0.1)
+        energetic = clip("energetic.mp4", brightness=20, start=VFADE, motion_score=0.8)
+
+        ordered = order_clips([start, calm, energetic], "visual", "arc")
+
+        self.assertEqual([item.path.name for item in ordered], ["start.mp4", "energetic.mp4", "calm.mp4"])
+
     def test_transition_similarity_uses_more_than_boundary_frames(self) -> None:
         """Visual ordering should not trust a single matching edge frame alone."""
         previous = clip("previous.mp4", end=V1, sequence=(V2, V2, V1))
@@ -372,6 +383,60 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(grade_filter(120, False), "")
         self.assertIn("eq=brightness=", grade_filter(90, True))
 
+    def test_normalize_clip_command_includes_trim_audio_and_grade(self) -> None:
+        """Video normalization should forward trim, audio, and auto-grade settings to FFmpeg."""
+        with patch("clipweave.render.run") as run:
+            normalize_clip(Path("in.mp4"), Path("out.mp4"), (720, 1280), True, 18, "medium", 1.25, 2.5, True, 90)
+
+        command = run.call_args.args[0]
+        self.assertIn("-ss", command)
+        self.assertIn("1.250", command)
+        self.assertIn("-t", command)
+        self.assertIn("2.500", command)
+        self.assertIn("-c:a", command)
+        self.assertTrue(any("eq=brightness=" in value for value in command))
+
+    def test_normalize_image_command_is_silent_and_can_grade(self) -> None:
+        """Image slideshow segments loop a still frame, remove audio, and support grading."""
+        with patch("clipweave.render.run") as run:
+            normalize_image(Path("in.jpg"), Path("out.mp4"), (720, 1280), 3.0, 18, "medium", True, 200)
+
+        command = run.call_args.args[0]
+        self.assertIn("-loop", command)
+        self.assertIn("-an", command)
+        self.assertTrue(any("eq=brightness=" in value for value in command))
+
+
+class ContactSheetTests(unittest.TestCase):
+    def test_fit_thumbnail_letterboxes_to_fixed_cell_size(self) -> None:
+        """Contact-sheet thumbnails keep stable dimensions regardless of source aspect."""
+        frame = np.full((40, 10, 3), 255, dtype=np.uint8)
+
+        thumb = fit_thumbnail(frame)
+
+        self.assertEqual(thumb.shape, (THUMB_HEIGHT, THUMB_WIDTH, 3))
+
+    def test_save_contact_sheet_rejects_empty_selection(self) -> None:
+        """A contact sheet without selected clips is a caller error."""
+        with self.assertRaisesRegex(RuntimeError, "without selected clips"):
+            save_contact_sheet([], Path("out.mp4"))
+
+    def test_save_contact_sheet_writes_expected_grid(self) -> None:
+        """Contact sheet rendering should write a deterministic grid image."""
+        clips = [clip("a.mp4"), clip("b.mp4"), clip("c.mp4")]
+        frame = np.full((40, 20, 3), 255, dtype=np.uint8)
+
+        with (
+            patch("clipweave.contact_sheet.representative_frame", return_value=frame),
+            patch("clipweave.contact_sheet.cv2.imwrite", return_value=True) as imwrite,
+        ):
+            path = save_contact_sheet(clips, Path("out.mp4"), columns=2)
+
+        written = imwrite.call_args.args[1]
+        self.assertEqual(path, Path("out.contact.jpg"))
+        self.assertEqual(written.shape[1], 2 * (THUMB_WIDTH + PADDING) + PADDING)
+        self.assertEqual(written.shape[0], 2 * (THUMB_HEIGHT + LABEL_HEIGHT + PADDING) + PADDING)
+
 
 class PipelineTests(unittest.TestCase):
     def test_discover_clips_skips_outputs_and_filters_by_media(self) -> None:
@@ -475,6 +540,22 @@ class PipelineTests(unittest.TestCase):
                 manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output, save_contact_sheet=True))
                 contact_sheet.assert_called_once()
                 self.assertEqual(manifest["contact_sheet"], str(output.with_suffix(".contact.jpg")))
+
+    def test_render_video_passes_auto_grade_to_normalization(self) -> None:
+        """Pipeline rendering should forward auto-grade to every normalized source."""
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.mp4"
+            selected = [clip("a.mp4", duration=1.0), clip("b.mp4", duration=1.0)]
+            options = BuildOptions(input_dir=Path(tmp), output=output, transition="cut", auto_grade=True)
+
+            with (
+                patch("clipweave.pipeline.normalize_source") as normalize,
+                patch("clipweave.pipeline.concat_plain", return_value=[]),
+            ):
+                render_video(selected, (1080, 1920), output, options)
+
+        self.assertEqual(normalize.call_count, 2)
+        self.assertTrue(all(call.args[6] is True for call in normalize.call_args_list))
 
 
 if __name__ == "__main__":
