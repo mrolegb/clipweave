@@ -2,7 +2,7 @@
 
 ![Clipweave banner](assets/clipweave-app-banner.png)
 
-Clipweave assembles a folder of short videos or images into one coherent montage. It filters by orientation and size, skips obvious duplicates, orders clips by visual continuity, and writes a browser/player-friendly H.264 MP4.
+Clipweave assembles a folder of short videos or images into one coherent montage. It filters by orientation and size, skips obvious duplicates, can trim repeated sequences, orders clips by visual continuity and pacing, and writes a browser/player-friendly H.264 MP4.
 
 ## Requirements
 
@@ -106,7 +106,7 @@ The command line tool remains the primary interface, but Clipweave also includes
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, structure, auto grading, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 
@@ -231,6 +231,9 @@ Important parameters:
 - `--transition fade|cut`  
   `fade` uses shorter fades when adjacent frames are visually similar.
 
+- `--auto-grade`
+  Applies a light per-clip brightness, contrast, and saturation normalization during render. This is useful when selected clips vary noticeably in light or color.
+
 - `--duplicate-threshold FLOAT`  
   Default `0.965`. Lower values remove more near-duplicates; higher values keep more clips.
 
@@ -249,6 +252,9 @@ Important parameters:
 - `--order visual|name|duration`
   `visual` orders clips by transition similarity using boundary frames plus short sampled frame sequences. Trimmed segments from one source stay in source-time order.
 
+- `--structure smooth|arc|variety`
+  Adjusts visual ordering when `--order visual` is used. `smooth` favors continuity, `arc` tries to build toward higher motion near the middle, and `variety` allows stronger changes between neighboring clips.
+
 - `--crf N` and `--preset NAME`  
   Encoding quality controls. Default is `--crf 16 --preset slow`, which favors quality over speed.
 
@@ -263,11 +269,13 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - remove strong visual duplicates;
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
 - optionally trim repeated clips to novel segments, or skip them when no useful segment remains, with `--smart-editing`;
-- order the selected clips by visual continuity while preserving source-time order inside trimmed segment groups;
+- estimate a simple motion score from sampled frame changes;
+- order the selected clips by visual continuity and optional structure while preserving source-time order inside trimmed segment groups;
 - shorten fade duration when the outgoing and incoming frames are already similar;
+- optionally apply light auto grading during FFmpeg normalization;
 - optionally reject media below `--target-threshold` similarity to a target image/video.
 
-It does not crop clips or choose sub-ranges inside clips. Every selected clip is used from start to finish.
+It does not crop clips. Without `--smart-editing`, every selected clip is used from start to finish. With `--smart-editing`, it can keep only the fresher source ranges.
 
 For image slideshows, each selected image is converted into a still video segment using `--image-duration`.
 

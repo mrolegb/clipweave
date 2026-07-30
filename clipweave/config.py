@@ -34,6 +34,8 @@ class BuildOptions:
     duplicate_threshold: float = 0.965
     aspect_tolerance: float = 0.04
     order: str = "visual"
+    structure: str = "smooth"
+    auto_grade: bool = False
     crf: int = 16
     preset: str = "slow"
     save_manifest: bool = False

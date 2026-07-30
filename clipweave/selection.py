@@ -188,12 +188,20 @@ def clip_segment(clip: Clip, start_index: int, end_index: int) -> Clip:
     duration = max(0.0, end - start)
     segment_sequence = sequence[start_index : end_index + 1]
     mid_index = start_index + ((end_index - start_index) // 2)
+    segment_motion = 0.0
+    if len(segment_sequence) > 1:
+        changes = [
+            max(0.0, 1.0 - correlation(segment_sequence[index - 1], segment_sequence[index]))
+            for index in range(1, len(segment_sequence))
+        ]
+        segment_motion = float(sum(changes) / len(changes))
     return replace(
         clip,
         meta=VideoMeta(width=clip.width, height=clip.height, duration=duration),
         start=sequence[start_index],
         mid=sequence[mid_index],
         end=sequence[end_index],
+        motion_score=segment_motion,
         sequence=segment_sequence,
         sequence_times=tuple(time - start for time in times[start_index : end_index + 1]),
         source_start=clip.source_start + start,
@@ -243,8 +251,26 @@ def select_unique_segments(
     return selected
 
 
-def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
-    """Order clips by filename, duration, or greedy visual continuity."""
+def group_motion(group: list[Clip]) -> float:
+    """Return average motion score for a chronological source group."""
+    return sum(clip.motion_score for clip in group) / len(group) if group else 0.0
+
+
+def visual_group_key(previous: Clip, group: list[Clip], structure: str, position: float, max_motion: float) -> tuple[float, float, float]:
+    """Score the next visual group while honoring the requested pacing structure."""
+    similarity = transition_similarity(previous, group[0])
+    motion_delta = abs(previous.motion_score - group_motion(group))
+    brightness_delta = abs(previous.brightness - group[0].brightness) / 255.0
+    if structure == "variety":
+        return (abs(similarity - 0.58), -motion_delta, -brightness_delta)
+    if structure == "arc":
+        target_motion = max_motion * float(np.sin(np.pi * position))
+        return (1 - similarity, abs(group_motion(group) - target_motion), brightness_delta)
+    return (1 - similarity, motion_delta, brightness_delta)
+
+
+def order_clips(clips: list[Clip], mode: str, structure: str = "smooth") -> list[Clip]:
+    """Order clips by filename, duration, or greedy visual continuity with pacing."""
     if mode == "name":
         return sorted(clips, key=lambda clip: (clip.path.name, clip.source_start))
     if mode == "duration":
@@ -263,12 +289,11 @@ def order_clips(clips: list[Clip], mode: str) -> list[Clip]:
     unused.remove(current_group)
     while unused:
         previous = ordered_groups[-1][-1]
+        position = len(ordered_groups) / max(1, len(groups) - 1)
+        max_motion = max(group_motion(group) for group in groups)
         current_group = min(
             unused,
-            key=lambda group: (
-                1 - transition_similarity(previous, group[0]),
-                abs(previous.brightness - group[0].brightness),
-            ),
+            key=lambda group: visual_group_key(previous, group, structure, position, max_motion),
         )
         ordered_groups.append(current_group)
         unused.remove(current_group)

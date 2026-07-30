@@ -8,11 +8,12 @@ from unittest.mock import patch
 
 import numpy as np
 
+from clipweave.analysis import motion_score
 from clipweave.cli import options_from_args
 from clipweave.config import BuildOptions
 from clipweave.models import Clip, Transition, VideoMeta
 from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target
-from clipweave.render import fade_duration
+from clipweave.render import fade_duration, grade_filter
 from clipweave.selection import (
     apply_duration_limit,
     choose_dimensions,
@@ -54,6 +55,7 @@ def clip(
     mid: np.ndarray = V1,
     end: np.ndarray = V1,
     brightness: float = 100.0,
+    motion_score: float = 0.0,
     media_type: str = "video",
     sequence: tuple[np.ndarray, ...] | None = None,
     sequence_times: tuple[float, ...] | None = None,
@@ -68,6 +70,7 @@ def clip(
         mid=mid,
         end=end,
         brightness=brightness,
+        motion_score=motion_score,
         media_type=media_type,
         sequence=sequence or (start, mid, end),
         sequence_times=sequence_times or (0.0, duration / 2, duration),
@@ -116,6 +119,8 @@ class ConfigTests(unittest.TestCase):
             duplicate_threshold=0.9,
             aspect_tolerance=0.02,
             order="name",
+            structure="arc",
+            auto_grade=True,
             crf=18,
             preset="medium",
             save_manifest=True,
@@ -137,6 +142,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.audio, "keep")
         self.assertEqual(options.image_duration, 2.5)
         self.assertEqual(options.target_threshold, 0.5)
+        self.assertEqual(options.structure, "arc")
+        self.assertTrue(options.auto_grade)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
         self.assertTrue(options.save_manifest)
@@ -237,6 +244,24 @@ class SelectionTests(unittest.TestCase):
             [("source.mp4", 1.0), ("source.mp4", 5.0), ("bridge.mp4", 0.0)],
         )
 
+    def test_motion_score_tracks_sampled_frame_change(self) -> None:
+        """Motion score increases when adjacent sampled frames are less alike."""
+        still = motion_score((V1, V1, V1))
+        changing = motion_score((V1, V2, V3))
+
+        self.assertEqual(still, 0.0)
+        self.assertGreater(changing, still)
+
+    def test_visual_structure_can_prefer_variety(self) -> None:
+        """Variety structure favors a stronger motion change when similarity is close."""
+        start = clip("start.mp4", brightness=10, end=V1, motion_score=0.0)
+        low_motion = clip("low.mp4", brightness=20, start=VFADE, motion_score=0.05)
+        high_motion = clip("high.mp4", brightness=20, start=VFADE, motion_score=0.9)
+
+        ordered = order_clips([start, low_motion, high_motion], "visual", "variety")
+
+        self.assertEqual([item.path.name for item in ordered], ["start.mp4", "high.mp4", "low.mp4"])
+
     def test_transition_similarity_uses_more_than_boundary_frames(self) -> None:
         """Visual ordering should not trust a single matching edge frame alone."""
         previous = clip("previous.mp4", end=V1, sequence=(V2, V2, V1))
@@ -286,6 +311,7 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(selected[1].source_start, 5.0)
         self.assertEqual(selected[1].duration, 4.0)
         self.assertEqual(len(selected[1].sequence), 2)
+        self.assertEqual(selected[1].motion_score, 0.0)
 
     def test_smart_sequence_splits_fresh_clips_on_scene_changes(self) -> None:
         """Smart editing splits even fresh clips when sampled frames jump sharply."""
@@ -341,6 +367,11 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(fade_duration(prev, clip("mixed.mp4", start=VFADE), 0.08, 0.45), 0.15)
         self.assertEqual(fade_duration(prev, clip("different.mp4", start=V2), 0.08, 0.45), 0.45)
 
+    def test_grade_filter_is_opt_in(self) -> None:
+        """Auto grading only adds an FFmpeg eq filter when requested."""
+        self.assertEqual(grade_filter(120, False), "")
+        self.assertIn("eq=brightness=", grade_filter(90, True))
+
 
 class PipelineTests(unittest.TestCase):
     def test_discover_clips_skips_outputs_and_filters_by_media(self) -> None:
@@ -389,7 +420,10 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(manifest["output"], "clipweave_out.mp4")
         self.assertEqual(manifest["dimensions"], {"width": 1080, "height": 1920})
+        self.assertEqual(manifest["auto_grade"], False)
+        self.assertEqual(manifest["structure"], "smooth")
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
+        self.assertEqual(manifest["selected_clips"][0]["motion_score"], 0.0)
         self.assertEqual(manifest["selected_clips"][0]["target_similarity"], 1.0)
         self.assertEqual(manifest["transitions"][0]["fade_seconds"], 0.123)
 

@@ -22,6 +22,14 @@ def correlation(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.dot(left, right))
 
 
+def motion_score(sequence: tuple[np.ndarray, ...]) -> float:
+    """Estimate clip motion from average visual change between sampled frames."""
+    if len(sequence) < 2:
+        return 0.0
+    changes = [max(0.0, 1.0 - correlation(sequence[index - 1], sequence[index])) for index in range(1, len(sequence))]
+    return float(sum(changes) / len(changes))
+
+
 def sequence_fractions(duration: float, sample_rate: float) -> list[float]:
     """Choose frame positions for sequence-level visual duplicate checks."""
     if sample_rate <= 0:
@@ -71,6 +79,7 @@ def read_clip(path: Path, sequence_sample_rate: float = 0.0) -> Clip | None:
         mid=mid_vector,
         end=end_vector,
         brightness=float(np.mean(mid_gray)),
+        motion_score=motion_score(sequence),
         media_type="video",
         sequence=sequence,
         sequence_times=fraction_times(meta.duration, sequence_fractions_used),
@@ -97,6 +106,7 @@ def read_image_clip(path: Path, duration: float) -> Clip | None:
         mid=vector,
         end=vector,
         brightness=float(np.mean(gray)),
+        motion_score=0.0,
         media_type="image",
         sequence=(vector,),
         sequence_times=(0.0,),

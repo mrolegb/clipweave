@@ -58,7 +58,7 @@ def read_target(options: BuildOptions) -> Clip | None:
 
 def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> tuple[list[Clip], dict[str, int | None]]:
     """Order clips, apply smart editing, and optionally re-order salvaged segments."""
-    selected = order_clips(clips, options.order)
+    selected = order_clips(clips, options.order, options.structure)
     if not options.smart_editing:
         return selected, {"after_smart_trim": None, "after_smart_dedupe": None}
 
@@ -78,7 +78,7 @@ def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> tuple[list
         )
     dedupe_count = len(selected)
     if options.smart_reorder_segments:
-        selected = order_clips(selected, options.order)
+        selected = order_clips(selected, options.order, options.structure)
     return selected, {"after_smart_trim": trim_count, "after_smart_dedupe": dedupe_count}
 
 
@@ -129,7 +129,7 @@ def render_video(
         normalized = []
         for index, clip in enumerate(clips, 1):
             path = temp_root / f"clip_{index:03d}.mp4"
-            normalize_source(clip, path, dimensions, options.keep_audio, options.crf, options.preset)
+            normalize_source(clip, path, dimensions, options.keep_audio, options.crf, options.preset, options.auto_grade)
             normalized.append(path)
 
         if options.use_fades:
@@ -166,6 +166,8 @@ def build_manifest(
         "dimensions": {"width": dimensions[0], "height": dimensions[1]},
         "audio": options.audio,
         "image_duration": options.image_duration,
+        "auto_grade": options.auto_grade,
+        "structure": options.structure,
         "smart_editing": options.smart_editing,
         "smart_sample_rate": options.smart_sample_rate if options.smart_editing else None,
         "smart_threshold": options.smart_threshold if options.smart_editing else None,
@@ -193,6 +195,7 @@ def build_manifest(
                 "source_start": round(clip.source_start, 3),
                 "source_end": round(clip.trim_end, 3),
                 "media_type": clip.media_type,
+                "motion_score": round(clip.motion_score, 4),
                 "target_similarity": round(target_similarity(clip, target), 4) if target else None,
                 "known_frame_ratio": round(clip.known_frame_ratio, 4) if clip.known_frame_ratio is not None else None,
             }

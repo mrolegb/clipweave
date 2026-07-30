@@ -28,6 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--duplicate-threshold", type=float, default=0.965)
     parser.add_argument("--aspect-tolerance", type=float, default=0.04)
     parser.add_argument("--order", choices=["visual", "name", "duration"], default="visual")
+    parser.add_argument("--structure", choices=["smooth", "arc", "variety"], default="smooth", help="Visual pacing style used after clip selection.")
+    parser.add_argument("--auto-grade", action="store_true", help="Apply a light brightness, contrast, and saturation normalization per clip.")
     parser.add_argument("--crf", type=int, default=16)
     parser.add_argument("--preset", default="slow")
     parser.add_argument("--save-manifest", action="store_true", help="Write a .manifest.json file next to the output video.")
@@ -88,6 +90,8 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         duplicate_threshold=args.duplicate_threshold,
         aspect_tolerance=args.aspect_tolerance,
         order=args.order,
+        structure=args.structure,
+        auto_grade=args.auto_grade,
         crf=args.crf,
         preset=args.preset,
         save_manifest=args.save_manifest,

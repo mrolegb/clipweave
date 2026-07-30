@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
         self.media_combo = panel.media_combo
         self.orientation_combo = panel.orientation_combo
         self.order_combo = panel.order_combo
+        self.structure_combo = panel.structure_combo
         self.image_duration_spin = panel.image_duration_spin
         self.max_duration_spin = panel.max_duration_spin
         self.target_threshold_spin = panel.target_threshold_spin
@@ -94,6 +95,7 @@ class MainWindow(QMainWindow):
         self.preset_combo = panel.preset_combo
         self.keep_audio_check = panel.keep_audio_check
         self.fade_transition_check = panel.fade_transition_check
+        self.auto_grade_check = panel.auto_grade_check
         self.smart_editing_check = panel.smart_editing_check
         self.smart_dedupe_segments_check = panel.smart_dedupe_segments_check
         self.smart_reorder_segments_check = panel.smart_reorder_segments_check
@@ -165,6 +167,8 @@ class MainWindow(QMainWindow):
             transition=self.options_group.transition_value,
             duplicate_threshold=self.duplicate_threshold_spin.value(),
             order=self.order_combo.currentText(),
+            structure=self.structure_combo.currentText(),
+            auto_grade=self.auto_grade_check.isChecked(),
             crf=self.crf_spin.value(),
             preset=self.preset_combo.currentText(),
             save_manifest=self.save_manifest_check.isChecked(),
