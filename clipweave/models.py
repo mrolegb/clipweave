@@ -31,6 +31,7 @@ class Clip:
     mid: np.ndarray
     end: np.ndarray
     brightness: float
+    motion_score: float = 0.0
     media_type: str = "video"
     sequence: tuple[np.ndarray, ...] = field(default_factory=tuple)
     sequence_times: tuple[float, ...] = field(default_factory=tuple)

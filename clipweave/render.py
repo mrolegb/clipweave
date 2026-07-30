@@ -8,6 +8,20 @@ from .models import Clip, Transition
 from .selection import transition_similarity
 
 
+def grade_filter(brightness: float, auto_grade: bool) -> str:
+    """Build a conservative FFmpeg eq filter for rough brightness normalization."""
+    if not auto_grade:
+        return ""
+    brightness_adjust = max(-0.18, min(0.18, ((128.0 - brightness) / 255.0) * 0.45))
+    if brightness < 110:
+        contrast = 1.06
+    elif brightness > 155:
+        contrast = 0.98
+    else:
+        contrast = 1.02
+    return f",eq=brightness={brightness_adjust:.4f}:contrast={contrast:.3f}:saturation=1.040"
+
+
 def fade_duration(prev: Clip, nxt: Clip, min_fade: float, max_fade: float) -> float:
     """Choose a shorter fade when adjacent frames are already visually similar."""
     similarity = transition_similarity(prev, nxt)
@@ -29,6 +43,8 @@ def normalize_clip(
     preset: str,
     start: float = 0.0,
     duration: float | None = None,
+    auto_grade: bool = False,
+    brightness: float = 128.0,
 ) -> None:
     """Transcode a video clip into the common output size and codec settings."""
     width, height = dimensions
@@ -49,7 +65,7 @@ def normalize_clip(
         command += ["-t", f"{duration:.3f}"]
     command += [
         "-vf",
-        f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30,format=yuv420p",
+        f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30{grade_filter(brightness, auto_grade)},format=yuv420p",
     ]
     if keep_audio:
         command += ["-c:a", "aac", "-b:a", "192k"]
@@ -80,6 +96,8 @@ def normalize_image(
     duration: float,
     crf: int,
     preset: str,
+    auto_grade: bool = False,
+    brightness: float = 128.0,
 ) -> None:
     """Convert a still image into a fixed-duration video segment."""
     width, height = dimensions
@@ -97,7 +115,7 @@ def normalize_image(
             "-i",
             str(src),
             "-vf",
-            f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30,format=yuv420p",
+            f"scale={width}:{height}:flags=lanczos:in_range=auto:out_range=tv,setsar=1,fps=30{grade_filter(brightness, auto_grade)},format=yuv420p",
             "-an",
             "-c:v",
             "libx264",
@@ -123,12 +141,13 @@ def normalize_source(
     keep_audio: bool,
     crf: int,
     preset: str,
+    auto_grade: bool = False,
 ) -> None:
     """Normalize either a video clip or an image clip into a temporary MP4."""
     if clip.media_type == "image":
-        normalize_image(clip.path, dst, dimensions, clip.duration, crf, preset)
+        normalize_image(clip.path, dst, dimensions, clip.duration, crf, preset, auto_grade, clip.brightness)
         return
-    normalize_clip(clip.path, dst, dimensions, keep_audio, crf, preset, clip.source_start, clip.duration)
+    normalize_clip(clip.path, dst, dimensions, keep_audio, crf, preset, clip.source_start, clip.duration, auto_grade, clip.brightness)
 
 
 def concat_plain(clips: list[Path], output: Path, concat_file: Path) -> None:
