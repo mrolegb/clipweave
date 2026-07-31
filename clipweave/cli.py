@@ -33,7 +33,7 @@ def parse_args() -> argparse.Namespace:
         "--clothing-priority",
         choices=["none", "less", "more"],
         default="none",
-        help="Prioritize clips by estimated visible skin exposure. Heuristic, not a safety classifier.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument("--auto-grade", action="store_true", help="Apply a light brightness, contrast, and saturation normalization per clip.")
     parser.add_argument("--crf", type=int, default=16)

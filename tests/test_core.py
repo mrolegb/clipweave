@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from argparse import Namespace
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 
 from clipweave.analysis import motion_score, skin_exposure_score, skin_ratio
-from clipweave.cli import options_from_args
+from clipweave.cli import options_from_args, parse_args
 from clipweave.config import BuildOptions
 from clipweave.contact_sheet import LABEL_HEIGHT, PADDING, THUMB_HEIGHT, THUMB_WIDTH, fit_thumbnail, save_contact_sheet
 from clipweave.models import Clip, Transition, VideoMeta
@@ -162,6 +164,23 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.smart_scene_threshold, 0.6)
         self.assertFalse(options.smart_reorder_segments)
         self.assertFalse(options.smart_dedupe_segments)
+
+    def test_clothing_priority_flag_is_hidden_from_help(self) -> None:
+        """The experimental clothing priority flag should parse but not appear in help."""
+        help_output = StringIO()
+        with (
+            patch("sys.argv", ["clipweave.py", "--help"]),
+            self.assertRaises(SystemExit) as raised,
+            redirect_stdout(help_output),
+        ):
+            parse_args()
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertNotIn("clothing-priority", help_output.getvalue())
+
+        with patch("sys.argv", ["clipweave.py", "clips", "--clothing-priority", "less"]):
+            args = parse_args()
+        self.assertEqual(args.clothing_priority, "less")
 
 
 class SelectionTests(unittest.TestCase):
