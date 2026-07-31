@@ -24,11 +24,13 @@ from clipweave.pipeline import (
     order_and_smart_edit,
     read_target,
     render_video,
+    select_clips,
     variant_output_path,
 )
 from clipweave.render import fade_duration, grade_filter, normalize_clip, normalize_image
 from clipweave.selection import (
     apply_duration_limit,
+    aspect_matches,
     choose_dimensions,
     filter_by_target,
     is_extension_duplicate,
@@ -226,6 +228,14 @@ class SelectionTests(unittest.TestCase):
         ]
 
         self.assertEqual(choose_dimensions(clips, 0.04), (1080, 1920))
+
+    def test_aspect_matches_accepts_close_ratios_not_only_exact_size(self) -> None:
+        """Single-output selection should include close-ratio clips with different dimensions."""
+        target = (368, 800)
+
+        self.assertTrue(aspect_matches(clip("same.mp4", width=368, height=800), target, 0.04))
+        self.assertTrue(aspect_matches(clip("close.mp4", width=368, height=816), target, 0.04))
+        self.assertFalse(aspect_matches(clip("wide.mp4", width=800, height=368), target, 0.04))
 
     def test_select_unique_removes_hash_and_visual_duplicates(self) -> None:
         """Dedupe keeps longer clips and skips near-identical middles."""
@@ -526,6 +536,28 @@ class PipelineTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "Unsupported target file type"):
             read_target(options)
+
+    def test_select_clips_keeps_close_aspect_ratios(self) -> None:
+        """Single-output mode should not drop clips just because dimensions differ."""
+        selected = [
+            clip("common-a.mp4", width=368, height=800),
+            clip("common-b.mp4", width=368, height=800),
+            clip("common-c.mp4", width=368, height=800),
+            clip("close.mp4", width=368, height=816),
+            clip("wide.mp4", width=800, height=368),
+        ]
+        options = BuildOptions(input_dir=Path("."), output=None, orientation="any")
+
+        with (
+            patch("clipweave.pipeline.discover_clips", return_value=selected),
+            patch("clipweave.pipeline.read_target", return_value=None),
+        ):
+            clips, dimensions, counts, _ = select_clips(options)
+
+        self.assertEqual(dimensions, (368, 800))
+        self.assertIn("close.mp4", [item.path.name for item in clips])
+        self.assertNotIn("wide.mp4", [item.path.name for item in clips])
+        self.assertEqual(counts["after_size_filter"], 4)
 
     def test_build_manifest_serializes_selection(self) -> None:
         """Manifest includes options, counts, clips, and transition records."""

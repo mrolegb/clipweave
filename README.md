@@ -202,7 +202,7 @@ python clipweave.py "D:\clips" `
 Important parameters:
 
 - `--orientation vertical|horizontal|any`  
-  Chooses which clips are eligible. The final video uses the most common exact resolution among matching clips, so black bars are avoided.
+  Chooses which clips are eligible. The final video uses the most common resolution among matching clips and includes other clips with close proportions.
 
 - `--media videos|images|mixed`  
   `videos` is the default. Use `images` to build a slideshow, or `mixed` to combine videos and still images.

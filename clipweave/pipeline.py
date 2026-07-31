@@ -14,6 +14,7 @@ from .models import Clip, Transition
 from .render import concat_plain, concat_xfade, normalize_source
 from .selection import (
     apply_duration_limit,
+    aspect_matches,
     choose_dimensions,
     filter_by_target,
     order_clips,
@@ -112,7 +113,7 @@ def select_from_pool(
 ) -> tuple[list[Clip], tuple[int, int], dict[str, int | None], Clip | None]:
     """Select, order, and limit clips from an already-filtered source pool."""
     dimensions = choose_dimensions(pool, options.aspect_tolerance)
-    candidates = [clip for clip in pool if clip.dimensions == dimensions] if keep_exact_size else pool
+    candidates = [clip for clip in pool if aspect_matches(clip, dimensions, options.aspect_tolerance)] if keep_exact_size else pool
     selected = select_unique(candidates, options.duplicate_threshold)
     selected, smart_counts = order_and_smart_edit(selected, options)
     smart_count = len(selected)
