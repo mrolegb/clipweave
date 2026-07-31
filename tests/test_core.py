@@ -15,7 +15,17 @@ from clipweave.cli import options_from_args, parse_args
 from clipweave.config import BuildOptions
 from clipweave.contact_sheet import LABEL_HEIGHT, PADDING, THUMB_HEIGHT, THUMB_WIDTH, fit_thumbnail, save_contact_sheet
 from clipweave.models import Clip, Transition, VideoMeta
-from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target, render_video
+from clipweave.pipeline import (
+    build_manifest,
+    build_split_aspect_videos,
+    build_video,
+    discover_clips,
+    grouped_by_aspect,
+    order_and_smart_edit,
+    read_target,
+    render_video,
+    variant_output_path,
+)
 from clipweave.render import fade_duration, grade_filter, normalize_clip, normalize_image
 from clipweave.selection import (
     apply_duration_limit,
@@ -127,6 +137,7 @@ class ConfigTests(unittest.TestCase):
             order="name",
             structure="arc",
             clothing_priority="less",
+            split_aspects=True,
             auto_grade=True,
             crf=18,
             preset="medium",
@@ -151,6 +162,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.target_threshold, 0.5)
         self.assertEqual(options.structure, "arc")
         self.assertEqual(options.clothing_priority, "less")
+        self.assertTrue(options.split_aspects)
         self.assertTrue(options.auto_grade)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
@@ -535,6 +547,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(manifest["dimensions"], {"width": 1080, "height": 1920})
         self.assertEqual(manifest["auto_grade"], False)
         self.assertEqual(manifest["structure"], "smooth")
+        self.assertEqual(manifest["split_aspects"], False)
         self.assertEqual(manifest["clothing_priority"], "none")
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["motion_score"], 0.0)
@@ -590,6 +603,36 @@ class PipelineTests(unittest.TestCase):
                 manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output, save_contact_sheet=True))
                 contact_sheet.assert_called_once()
                 self.assertEqual(manifest["contact_sheet"], str(output.with_suffix(".contact.jpg")))
+
+    def test_grouped_by_aspect_clusters_matching_ratios(self) -> None:
+        """Split-aspect mode groups dimensions by proportion, not exact size."""
+        vertical_a = clip("a.mp4", width=448, height=672)
+        vertical_b = clip("b.mp4", width=896, height=1344)
+        square = clip("c.mp4", width=800, height=800)
+
+        groups = grouped_by_aspect([square, vertical_a, vertical_b])
+
+        self.assertEqual([[item.path.name for item in group] for group in groups], [["a.mp4", "b.mp4"], ["c.mp4"]])
+        self.assertEqual(variant_output_path(Path("clipweave_out.mp4"), (448, 672)), Path("clipweave_out_448x672.mp4"))
+
+    def test_build_split_aspect_videos_renders_each_aspect_group(self) -> None:
+        """Split-aspect builds render separate outputs for each source ratio."""
+        selected = [
+            clip("a.mp4", width=448, height=672),
+            clip("b.mp4", width=896, height=1344),
+            clip("c.mp4", width=800, height=800),
+        ]
+        options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"), split_aspects=True)
+
+        with (
+            patch("clipweave.pipeline.source_pool", return_value=(selected, None, len(selected))),
+            patch("clipweave.pipeline.render_video", return_value=[]) as render,
+        ):
+            manifest = build_split_aspect_videos(options)
+
+        self.assertEqual(manifest["outputs_count"], 2)
+        self.assertEqual(render.call_count, 2)
+        self.assertEqual([Path(item["output"]).name for item in manifest["outputs"]], ["clipweave_out_448x672.mp4", "clipweave_out_800x800.mp4"])
 
     def test_render_video_passes_auto_grade_to_normalization(self) -> None:
         """Pipeline rendering should forward auto-grade to every normalized source."""

@@ -36,6 +36,7 @@ class BuildOptions:
     order: str = "visual"
     structure: str = "smooth"
     clothing_priority: str = "none"
+    split_aspects: bool = False
     auto_grade: bool = False
     crf: int = 16
     preset: str = "slow"
