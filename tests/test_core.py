@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from clipweave.analysis import motion_score
+from clipweave.analysis import motion_score, skin_exposure_score, skin_ratio
 from clipweave.cli import options_from_args
 from clipweave.config import BuildOptions
 from clipweave.contact_sheet import LABEL_HEIGHT, PADDING, THUMB_HEIGHT, THUMB_WIDTH, fit_thumbnail, save_contact_sheet
@@ -23,6 +23,7 @@ from clipweave.selection import (
     known_frame_ratio,
     order_clips,
     orientation_ok,
+    prioritize_by_clothing,
     select_unique,
     select_unique_segments,
     select_smart_sequences,
@@ -57,6 +58,7 @@ def clip(
     end: np.ndarray = V1,
     brightness: float = 100.0,
     motion_score: float = 0.0,
+    skin_exposure_score: float = 0.0,
     media_type: str = "video",
     sequence: tuple[np.ndarray, ...] | None = None,
     sequence_times: tuple[float, ...] | None = None,
@@ -72,6 +74,7 @@ def clip(
         end=end,
         brightness=brightness,
         motion_score=motion_score,
+        skin_exposure_score=skin_exposure_score,
         media_type=media_type,
         sequence=sequence or (start, mid, end),
         sequence_times=sequence_times or (0.0, duration / 2, duration),
@@ -121,6 +124,7 @@ class ConfigTests(unittest.TestCase):
             aspect_tolerance=0.02,
             order="name",
             structure="arc",
+            clothing_priority="less",
             auto_grade=True,
             crf=18,
             preset="medium",
@@ -144,6 +148,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.image_duration, 2.5)
         self.assertEqual(options.target_threshold, 0.5)
         self.assertEqual(options.structure, "arc")
+        self.assertEqual(options.clothing_priority, "less")
         self.assertTrue(options.auto_grade)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
@@ -252,6 +257,30 @@ class SelectionTests(unittest.TestCase):
 
         self.assertEqual(still, 0.0)
         self.assertGreater(changing, still)
+
+    def test_skin_exposure_score_uses_skin_colored_pixels(self) -> None:
+        """Skin exposure is a rough color heuristic over sampled frames."""
+        skin_like = np.full((20, 20, 3), (90, 130, 180), dtype=np.uint8)
+        dark = np.zeros((20, 20, 3), dtype=np.uint8)
+
+        self.assertGreater(skin_ratio(skin_like), skin_ratio(dark))
+        self.assertGreater(skin_exposure_score([skin_like, dark]), 0.0)
+
+    def test_clothing_priority_orders_by_estimated_exposure(self) -> None:
+        """Clothing priority can favor less or more covered clips before duration limiting."""
+        covered = clip("covered.mp4", skin_exposure_score=0.05)
+        mixed = clip("mixed.mp4", skin_exposure_score=0.25)
+        minimal = clip("minimal.mp4", skin_exposure_score=0.55)
+
+        self.assertEqual(
+            [item.path.name for item in prioritize_by_clothing([mixed, covered, minimal], "less")],
+            ["minimal.mp4", "mixed.mp4", "covered.mp4"],
+        )
+        self.assertEqual(
+            [item.path.name for item in prioritize_by_clothing([mixed, covered, minimal], "more")],
+            ["covered.mp4", "mixed.mp4", "minimal.mp4"],
+        )
+        self.assertEqual(prioritize_by_clothing([mixed], "none"), [mixed])
 
     def test_visual_structure_can_prefer_variety(self) -> None:
         """Variety structure favors a stronger motion change when similarity is close."""
@@ -487,8 +516,10 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(manifest["dimensions"], {"width": 1080, "height": 1920})
         self.assertEqual(manifest["auto_grade"], False)
         self.assertEqual(manifest["structure"], "smooth")
+        self.assertEqual(manifest["clothing_priority"], "none")
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["motion_score"], 0.0)
+        self.assertEqual(manifest["selected_clips"][0]["skin_exposure_score"], 0.0)
         self.assertEqual(manifest["selected_clips"][0]["target_similarity"], 1.0)
         self.assertEqual(manifest["transitions"][0]["fade_seconds"], 0.123)
 

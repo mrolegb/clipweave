@@ -106,7 +106,7 @@ The command line tool remains the primary interface, but Clipweave also includes
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, structure, auto grading, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, structure, clothing priority, auto grading, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 
@@ -255,6 +255,9 @@ Important parameters:
 - `--structure smooth|arc|variety`
   Adjusts visual ordering when `--order visual` is used. `smooth` favors continuity, `arc` tries to build toward higher motion near the middle, and `variety` allows stronger changes between neighboring clips.
 
+- `--clothing-priority none|less|more`
+  Reorders selected clips by a rough visible-skin heuristic before duration limiting. `less` prioritizes clips estimated to have less clothing coverage; `more` prioritizes clips estimated to have more coverage. This is a local color heuristic, not a reliable safety classifier.
+
 - `--crf N` and `--preset NAME`  
   Encoding quality controls. Default is `--crf 16 --preset slow`, which favors quality over speed.
 
@@ -270,6 +273,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - prefer longer Grok-extension clips over shorter 10/20 second variants when they look like the same sequence;
 - optionally trim repeated clips to novel segments, or skip them when no useful segment remains, with `--smart-editing`;
 - estimate a simple motion score from sampled frame changes;
+- estimate visible skin exposure for optional `--clothing-priority` ordering;
 - order the selected clips by visual continuity and optional structure while preserving source-time order inside trimmed segment groups;
 - shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally apply light auto grading during FFmpeg normalization;

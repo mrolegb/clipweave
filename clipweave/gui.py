@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         self.orientation_combo = panel.orientation_combo
         self.order_combo = panel.order_combo
         self.structure_combo = panel.structure_combo
+        self.clothing_priority_combo = panel.clothing_priority_combo
         self.image_duration_spin = panel.image_duration_spin
         self.max_duration_spin = panel.max_duration_spin
         self.target_threshold_spin = panel.target_threshold_spin
@@ -168,6 +169,7 @@ class MainWindow(QMainWindow):
             duplicate_threshold=self.duplicate_threshold_spin.value(),
             order=self.order_combo.currentText(),
             structure=self.structure_combo.currentText(),
+            clothing_priority=self.clothing_priority_combo.currentText(),
             auto_grade=self.auto_grade_check.isChecked(),
             crf=self.crf_spin.value(),
             preset=self.preset_combo.currentText(),

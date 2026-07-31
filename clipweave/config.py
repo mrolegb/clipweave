@@ -35,6 +35,7 @@ class BuildOptions:
     aspect_tolerance: float = 0.04
     order: str = "visual"
     structure: str = "smooth"
+    clothing_priority: str = "none"
     auto_grade: bool = False
     crf: int = 16
     preset: str = "slow"

@@ -17,6 +17,7 @@ from .selection import (
     filter_by_target,
     order_clips,
     orientation_ok,
+    prioritize_by_clothing,
     select_unique,
     select_unique_segments,
     select_smart_sequences,
@@ -102,6 +103,7 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
     selected = select_unique(same_size, options.duplicate_threshold)
     selected, smart_counts = order_and_smart_edit(selected, options)
     smart_count = len(selected)
+    selected = prioritize_by_clothing(selected, options.clothing_priority)
     selected = apply_duration_limit(selected, options.max_duration)
     if not selected:
         raise RuntimeError("No clips selected after filtering.")
@@ -168,6 +170,7 @@ def build_manifest(
         "image_duration": options.image_duration,
         "auto_grade": options.auto_grade,
         "structure": options.structure,
+        "clothing_priority": options.clothing_priority,
         "smart_editing": options.smart_editing,
         "smart_sample_rate": options.smart_sample_rate if options.smart_editing else None,
         "smart_threshold": options.smart_threshold if options.smart_editing else None,
@@ -196,6 +199,7 @@ def build_manifest(
                 "source_end": round(clip.trim_end, 3),
                 "media_type": clip.media_type,
                 "motion_score": round(clip.motion_score, 4),
+                "skin_exposure_score": round(clip.skin_exposure_score, 4),
                 "target_similarity": round(target_similarity(clip, target), 4) if target else None,
                 "known_frame_ratio": round(clip.known_frame_ratio, 4) if clip.known_frame_ratio is not None else None,
             }

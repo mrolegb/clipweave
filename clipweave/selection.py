@@ -251,6 +251,15 @@ def select_unique_segments(
     return selected
 
 
+def prioritize_by_clothing(clips: list[Clip], priority: str) -> list[Clip]:
+    """Move clips with lower or higher estimated clothing coverage earlier."""
+    if priority == "less":
+        return sorted(clips, key=lambda clip: (-clip.skin_exposure_score, clip.path.name, clip.source_start))
+    if priority == "more":
+        return sorted(clips, key=lambda clip: (clip.skin_exposure_score, clip.path.name, clip.source_start))
+    return clips
+
+
 def group_motion(group: list[Clip]) -> float:
     """Return average motion score for a chronological source group."""
     return sum(clip.motion_score for clip in group) / len(group) if group else 0.0
