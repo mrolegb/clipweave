@@ -82,21 +82,8 @@ jobs:
           Invoke-WithRetry { git push origin latest --force }
 
           $notes = "Automated Windows build from $env:GITHUB_SHA."
-          $releaseExists = $false
-          for ($attempt = 1; $attempt -le 5; $attempt++) {
-            gh release view latest
-            if ($LASTEXITCODE -eq 0) {
-              $releaseExists = $true
-              break
-            }
-            if ($attempt -lt 5) {
-              Start-Sleep -Seconds (20 * $attempt)
-            }
+          gh release view latest
+          if ($LASTEXITCODE -eq 0) {
+            Invoke-WithRetry { gh release delete latest --yes }
           }
-
-          if ($releaseExists) {
-            Invoke-WithRetry { gh release edit latest --title "Latest Windows Build" --notes $notes --latest }
-            Invoke-WithRetry { gh release upload latest clipweave-windows.zip --clobber }
-          } else {
-            Invoke-WithRetry { gh release create latest clipweave-windows.zip --title "Latest Windows Build" --notes $notes --latest }
-          }
+          Invoke-WithRetry { gh release create latest clipweave-windows.zip --title "Latest Windows Build" --notes $notes --latest }
