@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 from .analysis import read_clip, read_image_clip
@@ -13,10 +14,12 @@ from .models import Clip, Transition
 from .render import concat_plain, concat_xfade, normalize_source
 from .selection import (
     apply_duration_limit,
+    aspect_matches,
     choose_dimensions,
     filter_by_target,
     order_clips,
     orientation_ok,
+    prioritize_by_clothing,
     select_unique,
     select_unique_segments,
     select_smart_sequences,
@@ -82,8 +85,55 @@ def order_and_smart_edit(clips: list[Clip], options: BuildOptions) -> tuple[list
     return selected, {"after_smart_trim": trim_count, "after_smart_dedupe": dedupe_count}
 
 
-def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], dict[str, int | None], Clip | None]:
-    """Apply orientation, size, duplicate, ordering, and duration filters."""
+def aspect_key(clip: Clip) -> float:
+    """Group clips by source aspect ratio with enough tolerance for common encodes."""
+    return round(clip.width / clip.height, 2)
+
+
+def grouped_by_aspect(clips: list[Clip]) -> list[list[Clip]]:
+    """Return source clips grouped by rounded aspect ratio, largest groups first."""
+    groups: dict[float, list[Clip]] = defaultdict(list)
+    for clip in clips:
+        groups[aspect_key(clip)].append(clip)
+    return sorted(groups.values(), key=lambda group: (-len(group), aspect_key(group[0])))
+
+
+def variant_output_path(base: Path, dimensions: tuple[int, int]) -> Path:
+    """Append output dimensions before the file extension for split-aspect renders."""
+    return base.with_name(f"{base.stem}_{dimensions[0]}x{dimensions[1]}{base.suffix}")
+
+
+def select_from_pool(
+    pool: list[Clip],
+    options: BuildOptions,
+    target: Clip | None,
+    discovered_count: int,
+    target_count: int,
+    keep_exact_size: bool,
+) -> tuple[list[Clip], tuple[int, int], dict[str, int | None], Clip | None]:
+    """Select, order, and limit clips from an already-filtered source pool."""
+    dimensions = choose_dimensions(pool, options.aspect_tolerance)
+    candidates = [clip for clip in pool if aspect_matches(clip, dimensions, options.aspect_tolerance)] if keep_exact_size else pool
+    selected = select_unique(candidates, options.duplicate_threshold)
+    selected, smart_counts = order_and_smart_edit(selected, options)
+    smart_count = len(selected)
+    selected = prioritize_by_clothing(selected, options.clothing_priority)
+    selected = apply_duration_limit(selected, options.max_duration)
+    if not selected:
+        raise RuntimeError("No clips selected after filtering.")
+    counts = {
+        "after_orientation": discovered_count,
+        "after_target_filter": target_count,
+        "after_size_filter": len(candidates),
+        "after_smart_filter": smart_count,
+        "after_smart_trim": smart_counts["after_smart_trim"],
+        "after_smart_dedupe": smart_counts["after_smart_dedupe"],
+    }
+    return selected, dimensions, counts, target
+
+
+def source_pool(options: BuildOptions) -> tuple[list[Clip], Clip | None, int]:
+    """Discover media and apply target filtering before final selection."""
     discovered = discover_clips(options.resolved_input_dir, options)
     if not discovered:
         raise RuntimeError("No readable clips match the requested orientation.")
@@ -92,28 +142,16 @@ def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], di
     if options.target and target is None:
         raise RuntimeError(f"Could not read target media: {options.target}")
 
-    clips = discovered
-    clips = filter_by_target(clips, target, options.target_threshold)
+    clips = filter_by_target(discovered, target, options.target_threshold)
     if not clips:
         raise RuntimeError("No clips remain after target similarity filtering.")
+    return clips, target, len(discovered)
 
-    dimensions = choose_dimensions(clips, options.aspect_tolerance)
-    same_size = [clip for clip in clips if clip.dimensions == dimensions]
-    selected = select_unique(same_size, options.duplicate_threshold)
-    selected, smart_counts = order_and_smart_edit(selected, options)
-    smart_count = len(selected)
-    selected = apply_duration_limit(selected, options.max_duration)
-    if not selected:
-        raise RuntimeError("No clips selected after filtering.")
-    counts = {
-        "after_orientation": len(discovered),
-        "after_target_filter": len(clips),
-        "after_size_filter": len(same_size),
-        "after_smart_filter": smart_count,
-        "after_smart_trim": smart_counts["after_smart_trim"],
-        "after_smart_dedupe": smart_counts["after_smart_dedupe"],
-    }
-    return selected, dimensions, counts, target
+
+def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], dict[str, int | None], Clip | None]:
+    """Apply orientation, size, duplicate, ordering, and duration filters."""
+    clips, target, discovered_count = source_pool(options)
+    return select_from_pool(clips, options, target, discovered_count, len(clips), True)
 
 
 def render_video(
@@ -156,11 +194,12 @@ def build_manifest(
     candidate_count: dict[str, int | None],
     transitions: list[Transition],
     target: Clip | None,
+    output: Path | None = None,
 ) -> dict:
     """Build the JSON-serializable manifest written next to the output video."""
     return {
         "input_dir": str(options.resolved_input_dir),
-        "output": str(options.output_path),
+        "output": str(output or options.output_path),
         "orientation": options.orientation,
         "media": options.media,
         "dimensions": {"width": dimensions[0], "height": dimensions[1]},
@@ -168,6 +207,8 @@ def build_manifest(
         "image_duration": options.image_duration,
         "auto_grade": options.auto_grade,
         "structure": options.structure,
+        "split_aspects": options.split_aspects,
+        "clothing_priority": options.clothing_priority,
         "smart_editing": options.smart_editing,
         "smart_sample_rate": options.smart_sample_rate if options.smart_editing else None,
         "smart_threshold": options.smart_threshold if options.smart_editing else None,
@@ -196,6 +237,7 @@ def build_manifest(
                 "source_end": round(clip.trim_end, 3),
                 "media_type": clip.media_type,
                 "motion_score": round(clip.motion_score, 4),
+                "skin_exposure_score": round(clip.skin_exposure_score, 4),
                 "target_similarity": round(target_similarity(clip, target), 4) if target else None,
                 "known_frame_ratio": round(clip.known_frame_ratio, 4) if clip.known_frame_ratio is not None else None,
             }
@@ -205,14 +247,8 @@ def build_manifest(
     }
 
 
-def build_video(options: BuildOptions) -> dict:
-    """Run the full montage pipeline and write output video plus manifest."""
-    clips, dimensions, candidate_count, target = select_clips(options)
-    output = options.output_path
-    output.parent.mkdir(parents=True, exist_ok=True)
-    transitions = render_video(clips, dimensions, output, options)
-
-    manifest = build_manifest(options, clips, dimensions, candidate_count, transitions, target)
+def write_sidecars(options: BuildOptions, clips: list[Clip], output: Path, manifest: dict) -> None:
+    """Write optional manifest and contact sheet sidecars for one rendered output."""
     if options.save_contact_sheet:
         manifest["contact_sheet"] = str(save_contact_sheet(clips, output))
     if options.save_manifest:
@@ -220,4 +256,46 @@ def build_video(options: BuildOptions) -> dict:
             json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+
+def build_split_aspect_videos(options: BuildOptions) -> dict:
+    """Build one output video for each source aspect-ratio group."""
+    clips, target, discovered_count = source_pool(options)
+    outputs = []
+    for group in grouped_by_aspect(clips):
+        selected, dimensions, candidate_count, _ = select_from_pool(
+            group,
+            options,
+            target,
+            discovered_count,
+            len(clips),
+            False,
+        )
+        output = variant_output_path(options.output_path, dimensions)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        transitions = render_video(selected, dimensions, output, options)
+        manifest = build_manifest(options, selected, dimensions, candidate_count, transitions, target, output)
+        write_sidecars(options, selected, output, manifest)
+        outputs.append(manifest)
+
+    return {
+        "input_dir": str(options.resolved_input_dir),
+        "split_aspects": True,
+        "outputs_count": len(outputs),
+        "outputs": outputs,
+    }
+
+
+def build_video(options: BuildOptions) -> dict:
+    """Run the full montage pipeline and write output video plus manifest."""
+    if options.split_aspects:
+        return build_split_aspect_videos(options)
+
+    clips, dimensions, candidate_count, target = select_clips(options)
+    output = options.output_path
+    output.parent.mkdir(parents=True, exist_ok=True)
+    transitions = render_video(clips, dimensions, output, options)
+
+    manifest = build_manifest(options, clips, dimensions, candidate_count, transitions, target)
+    write_sidecars(options, clips, output, manifest)
     return manifest

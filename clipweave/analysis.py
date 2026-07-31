@@ -30,6 +30,34 @@ def motion_score(sequence: tuple[np.ndarray, ...]) -> float:
     return float(sum(changes) / len(changes))
 
 
+def skin_ratio(frame: np.ndarray) -> float:
+    """Estimate visible skin-colored area in the central body region of one frame."""
+    height, width = frame.shape[:2]
+    if not height or not width:
+        return 0.0
+
+    y1 = int(height * 0.12)
+    y2 = int(height * 0.95)
+    x1 = int(width * 0.12)
+    x2 = int(width * 0.88)
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        return 0.0
+
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    ycrcb = cv2.cvtColor(crop, cv2.COLOR_BGR2YCrCb)
+    hsv_mask = cv2.inRange(hsv, np.array([0, 25, 45]), np.array([35, 230, 255]))
+    ycrcb_mask = cv2.inRange(ycrcb, np.array([35, 133, 77]), np.array([255, 173, 127]))
+    mask = cv2.bitwise_and(hsv_mask, ycrcb_mask)
+    return float(np.count_nonzero(mask) / mask.size)
+
+
+def skin_exposure_score(frames: list[np.ndarray]) -> float:
+    """Return a stable skin-exposure estimate across sampled frames."""
+    ratios = [skin_ratio(frame) for frame in frames if frame is not None]
+    return float(np.median(ratios)) if ratios else 0.0
+
+
 def sequence_fractions(duration: float, sample_rate: float) -> list[float]:
     """Choose frame positions for sequence-level visual duplicate checks."""
     if sample_rate <= 0:
@@ -80,6 +108,7 @@ def read_clip(path: Path, sequence_sample_rate: float = 0.0) -> Clip | None:
         end=end_vector,
         brightness=float(np.mean(mid_gray)),
         motion_score=motion_score(sequence),
+        skin_exposure_score=skin_exposure_score(frames),
         media_type="video",
         sequence=sequence,
         sequence_times=fraction_times(meta.duration, sequence_fractions_used),
@@ -107,6 +136,7 @@ def read_image_clip(path: Path, duration: float) -> Clip | None:
         end=vector,
         brightness=float(np.mean(gray)),
         motion_score=0.0,
+        skin_exposure_score=skin_exposure_score([frame]),
         media_type="image",
         sequence=(vector,),
         sequence_times=(0.0,),

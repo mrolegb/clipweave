@@ -29,6 +29,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--aspect-tolerance", type=float, default=0.04)
     parser.add_argument("--order", choices=["visual", "name", "duration"], default="visual")
     parser.add_argument("--structure", choices=["smooth", "arc", "variety"], default="smooth", help="Visual pacing style used after clip selection.")
+    parser.add_argument("--split-aspects", action="store_true", help="Build one output per source aspect-ratio group.")
+    parser.add_argument(
+        "--clothing-priority",
+        choices=["none", "less", "more"],
+        default="none",
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--auto-grade", action="store_true", help="Apply a light brightness, contrast, and saturation normalization per clip.")
     parser.add_argument("--crf", type=int, default=16)
     parser.add_argument("--preset", default="slow")
@@ -91,6 +98,8 @@ def options_from_args(args: argparse.Namespace) -> BuildOptions:
         aspect_tolerance=args.aspect_tolerance,
         order=args.order,
         structure=args.structure,
+        split_aspects=args.split_aspects,
+        clothing_priority=args.clothing_priority,
         auto_grade=args.auto_grade,
         crf=args.crf,
         preset=args.preset,

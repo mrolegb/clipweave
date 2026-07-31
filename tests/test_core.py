@@ -2,27 +2,42 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from argparse import Namespace
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 
-from clipweave.analysis import motion_score
-from clipweave.cli import options_from_args
+from clipweave.analysis import motion_score, skin_exposure_score, skin_ratio
+from clipweave.cli import options_from_args, parse_args
 from clipweave.config import BuildOptions
 from clipweave.contact_sheet import LABEL_HEIGHT, PADDING, THUMB_HEIGHT, THUMB_WIDTH, fit_thumbnail, save_contact_sheet
 from clipweave.models import Clip, Transition, VideoMeta
-from clipweave.pipeline import build_manifest, build_video, discover_clips, order_and_smart_edit, read_target, render_video
+from clipweave.pipeline import (
+    build_manifest,
+    build_split_aspect_videos,
+    build_video,
+    discover_clips,
+    grouped_by_aspect,
+    order_and_smart_edit,
+    read_target,
+    render_video,
+    select_clips,
+    variant_output_path,
+)
 from clipweave.render import fade_duration, grade_filter, normalize_clip, normalize_image
 from clipweave.selection import (
     apply_duration_limit,
+    aspect_matches,
     choose_dimensions,
     filter_by_target,
     is_extension_duplicate,
     known_frame_ratio,
     order_clips,
     orientation_ok,
+    prioritize_by_clothing,
     select_unique,
     select_unique_segments,
     select_smart_sequences,
@@ -57,6 +72,7 @@ def clip(
     end: np.ndarray = V1,
     brightness: float = 100.0,
     motion_score: float = 0.0,
+    skin_exposure_score: float = 0.0,
     media_type: str = "video",
     sequence: tuple[np.ndarray, ...] | None = None,
     sequence_times: tuple[float, ...] | None = None,
@@ -72,6 +88,7 @@ def clip(
         end=end,
         brightness=brightness,
         motion_score=motion_score,
+        skin_exposure_score=skin_exposure_score,
         media_type=media_type,
         sequence=sequence or (start, mid, end),
         sequence_times=sequence_times or (0.0, duration / 2, duration),
@@ -121,6 +138,8 @@ class ConfigTests(unittest.TestCase):
             aspect_tolerance=0.02,
             order="name",
             structure="arc",
+            clothing_priority="less",
+            split_aspects=True,
             auto_grade=True,
             crf=18,
             preset="medium",
@@ -144,6 +163,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.image_duration, 2.5)
         self.assertEqual(options.target_threshold, 0.5)
         self.assertEqual(options.structure, "arc")
+        self.assertEqual(options.clothing_priority, "less")
+        self.assertTrue(options.split_aspects)
         self.assertTrue(options.auto_grade)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
@@ -157,6 +178,23 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.smart_scene_threshold, 0.6)
         self.assertFalse(options.smart_reorder_segments)
         self.assertFalse(options.smart_dedupe_segments)
+
+    def test_clothing_priority_flag_is_hidden_from_help(self) -> None:
+        """The experimental clothing priority flag should parse but not appear in help."""
+        help_output = StringIO()
+        with (
+            patch("sys.argv", ["clipweave.py", "--help"]),
+            self.assertRaises(SystemExit) as raised,
+            redirect_stdout(help_output),
+        ):
+            parse_args()
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertNotIn("clothing-priority", help_output.getvalue())
+
+        with patch("sys.argv", ["clipweave.py", "clips", "--clothing-priority", "less"]):
+            args = parse_args()
+        self.assertEqual(args.clothing_priority, "less")
 
 
 class SelectionTests(unittest.TestCase):
@@ -190,6 +228,14 @@ class SelectionTests(unittest.TestCase):
         ]
 
         self.assertEqual(choose_dimensions(clips, 0.04), (1080, 1920))
+
+    def test_aspect_matches_accepts_close_ratios_not_only_exact_size(self) -> None:
+        """Single-output selection should include close-ratio clips with different dimensions."""
+        target = (368, 800)
+
+        self.assertTrue(aspect_matches(clip("same.mp4", width=368, height=800), target, 0.04))
+        self.assertTrue(aspect_matches(clip("close.mp4", width=368, height=816), target, 0.04))
+        self.assertFalse(aspect_matches(clip("wide.mp4", width=800, height=368), target, 0.04))
 
     def test_select_unique_removes_hash_and_visual_duplicates(self) -> None:
         """Dedupe keeps longer clips and skips near-identical middles."""
@@ -252,6 +298,30 @@ class SelectionTests(unittest.TestCase):
 
         self.assertEqual(still, 0.0)
         self.assertGreater(changing, still)
+
+    def test_skin_exposure_score_uses_skin_colored_pixels(self) -> None:
+        """Skin exposure is a rough color heuristic over sampled frames."""
+        skin_like = np.full((20, 20, 3), (90, 130, 180), dtype=np.uint8)
+        dark = np.zeros((20, 20, 3), dtype=np.uint8)
+
+        self.assertGreater(skin_ratio(skin_like), skin_ratio(dark))
+        self.assertGreater(skin_exposure_score([skin_like, dark]), 0.0)
+
+    def test_clothing_priority_orders_by_estimated_exposure(self) -> None:
+        """Clothing priority can favor less or more covered clips before duration limiting."""
+        covered = clip("covered.mp4", skin_exposure_score=0.05)
+        mixed = clip("mixed.mp4", skin_exposure_score=0.25)
+        minimal = clip("minimal.mp4", skin_exposure_score=0.55)
+
+        self.assertEqual(
+            [item.path.name for item in prioritize_by_clothing([mixed, covered, minimal], "less")],
+            ["minimal.mp4", "mixed.mp4", "covered.mp4"],
+        )
+        self.assertEqual(
+            [item.path.name for item in prioritize_by_clothing([mixed, covered, minimal], "more")],
+            ["covered.mp4", "mixed.mp4", "minimal.mp4"],
+        )
+        self.assertEqual(prioritize_by_clothing([mixed], "none"), [mixed])
 
     def test_visual_structure_can_prefer_variety(self) -> None:
         """Variety structure favors a stronger motion change when similarity is close."""
@@ -467,6 +537,28 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Unsupported target file type"):
             read_target(options)
 
+    def test_select_clips_keeps_close_aspect_ratios(self) -> None:
+        """Single-output mode should not drop clips just because dimensions differ."""
+        selected = [
+            clip("common-a.mp4", width=368, height=800),
+            clip("common-b.mp4", width=368, height=800),
+            clip("common-c.mp4", width=368, height=800),
+            clip("close.mp4", width=368, height=816),
+            clip("wide.mp4", width=800, height=368),
+        ]
+        options = BuildOptions(input_dir=Path("."), output=None, orientation="any")
+
+        with (
+            patch("clipweave.pipeline.discover_clips", return_value=selected),
+            patch("clipweave.pipeline.read_target", return_value=None),
+        ):
+            clips, dimensions, counts, _ = select_clips(options)
+
+        self.assertEqual(dimensions, (368, 800))
+        self.assertIn("close.mp4", [item.path.name for item in clips])
+        self.assertNotIn("wide.mp4", [item.path.name for item in clips])
+        self.assertEqual(counts["after_size_filter"], 4)
+
     def test_build_manifest_serializes_selection(self) -> None:
         """Manifest includes options, counts, clips, and transition records."""
         options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"), target=Path("target.jpg"))
@@ -487,8 +579,11 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(manifest["dimensions"], {"width": 1080, "height": 1920})
         self.assertEqual(manifest["auto_grade"], False)
         self.assertEqual(manifest["structure"], "smooth")
+        self.assertEqual(manifest["split_aspects"], False)
+        self.assertEqual(manifest["clothing_priority"], "none")
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["motion_score"], 0.0)
+        self.assertEqual(manifest["selected_clips"][0]["skin_exposure_score"], 0.0)
         self.assertEqual(manifest["selected_clips"][0]["target_similarity"], 1.0)
         self.assertEqual(manifest["transitions"][0]["fade_seconds"], 0.123)
 
@@ -540,6 +635,36 @@ class PipelineTests(unittest.TestCase):
                 manifest = build_video(BuildOptions(input_dir=Path(tmp), output=output, save_contact_sheet=True))
                 contact_sheet.assert_called_once()
                 self.assertEqual(manifest["contact_sheet"], str(output.with_suffix(".contact.jpg")))
+
+    def test_grouped_by_aspect_clusters_matching_ratios(self) -> None:
+        """Split-aspect mode groups dimensions by proportion, not exact size."""
+        vertical_a = clip("a.mp4", width=448, height=672)
+        vertical_b = clip("b.mp4", width=896, height=1344)
+        square = clip("c.mp4", width=800, height=800)
+
+        groups = grouped_by_aspect([square, vertical_a, vertical_b])
+
+        self.assertEqual([[item.path.name for item in group] for group in groups], [["a.mp4", "b.mp4"], ["c.mp4"]])
+        self.assertEqual(variant_output_path(Path("clipweave_out.mp4"), (448, 672)), Path("clipweave_out_448x672.mp4"))
+
+    def test_build_split_aspect_videos_renders_each_aspect_group(self) -> None:
+        """Split-aspect builds render separate outputs for each source ratio."""
+        selected = [
+            clip("a.mp4", width=448, height=672),
+            clip("b.mp4", width=896, height=1344),
+            clip("c.mp4", width=800, height=800),
+        ]
+        options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"), split_aspects=True)
+
+        with (
+            patch("clipweave.pipeline.source_pool", return_value=(selected, None, len(selected))),
+            patch("clipweave.pipeline.render_video", return_value=[]) as render,
+        ):
+            manifest = build_split_aspect_videos(options)
+
+        self.assertEqual(manifest["outputs_count"], 2)
+        self.assertEqual(render.call_count, 2)
+        self.assertEqual([Path(item["output"]).name for item in manifest["outputs"]], ["clipweave_out_448x672.mp4", "clipweave_out_800x800.mp4"])
 
     def test_render_video_passes_auto_grade_to_normalization(self) -> None:
         """Pipeline rendering should forward auto-grade to every normalized source."""

@@ -46,6 +46,12 @@ def choose_dimensions(clips: list[Clip], aspect_tolerance: float) -> tuple[int, 
     return Counter(clip.dimensions for clip in close).most_common(1)[0][0]
 
 
+def aspect_matches(clip: Clip, dimensions: tuple[int, int], aspect_tolerance: float) -> bool:
+    """Check whether a clip can fit the target dimensions without a major aspect change."""
+    target_width, target_height = dimensions
+    return abs((clip.width / clip.height) - (target_width / target_height)) <= aspect_tolerance
+
+
 def is_extension_duplicate(shorter: Clip, longer: Clip, threshold: float) -> bool:
     """Detect likely Grok extension duplicates where a short clip repeats a long one."""
     if longer.duration < 28 or shorter.duration >= 28:
@@ -249,6 +255,15 @@ def select_unique_segments(
             selected.append(selected_clip)
             known_frames.extend(selected_clip.sequence or (selected_clip.start, selected_clip.mid, selected_clip.end))
     return selected
+
+
+def prioritize_by_clothing(clips: list[Clip], priority: str) -> list[Clip]:
+    """Move clips with lower or higher estimated clothing coverage earlier."""
+    if priority == "less":
+        return sorted(clips, key=lambda clip: (-clip.skin_exposure_score, clip.path.name, clip.source_start))
+    if priority == "more":
+        return sorted(clips, key=lambda clip: (clip.skin_exposure_score, clip.path.name, clip.source_start))
+    return clips
 
 
 def group_motion(group: list[Clip]) -> float:
