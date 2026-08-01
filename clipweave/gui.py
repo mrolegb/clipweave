@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
         self.keep_audio_check = panel.keep_audio_check
         self.fade_transition_check = panel.fade_transition_check
         self.split_aspects_check = panel.split_aspects_check
+        self.exclude_manifest_history_check = panel.exclude_manifest_history_check
         self.auto_grade_check = panel.auto_grade_check
         self.smart_editing_check = panel.smart_editing_check
         self.smart_dedupe_segments_check = panel.smart_dedupe_segments_check
@@ -170,6 +171,7 @@ class MainWindow(QMainWindow):
             order=self.order_combo.currentText(),
             structure=self.structure_combo.currentText(),
             split_aspects=self.split_aspects_check.isChecked(),
+            exclude_manifest_history=self.exclude_manifest_history_check.isChecked(),
             auto_grade=self.auto_grade_check.isChecked(),
             crf=self.crf_spin.value(),
             preset=self.preset_combo.currentText(),

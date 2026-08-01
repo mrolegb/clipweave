@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
 from contextlib import redirect_stdout
 from argparse import Namespace
 from io import StringIO
@@ -20,7 +21,10 @@ from clipweave.pipeline import (
     build_split_aspect_videos,
     build_video,
     discover_clips,
+    exclude_manifest_history,
     grouped_by_aspect,
+    manifest_used_files,
+    normalized_media_path,
     order_and_smart_edit,
     read_target,
     render_video,
@@ -140,6 +144,7 @@ class ConfigTests(unittest.TestCase):
             structure="arc",
             clothing_priority="less",
             split_aspects=True,
+            exclude_manifest_history=True,
             auto_grade=True,
             crf=18,
             preset="medium",
@@ -165,6 +170,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(options.structure, "arc")
         self.assertEqual(options.clothing_priority, "less")
         self.assertTrue(options.split_aspects)
+        self.assertTrue(options.exclude_manifest_history)
         self.assertTrue(options.auto_grade)
         self.assertEqual(options.crf, 18)
         self.assertEqual(options.preset, "medium")
@@ -559,6 +565,43 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("wide.mp4", [item.path.name for item in clips])
         self.assertEqual(counts["after_size_filter"], 4)
 
+    def test_manifest_history_reads_nested_split_outputs(self) -> None:
+        """Manifest history should include normal and split-output selected files."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "a.mp4"
+            second = root / "b.mp4"
+            ignored = root / "c.mp4"
+            manifest = {
+                "selected_clips": [{"file": str(first)}],
+                "outputs": [{"selected_clips": [{"file": str(second)}]}],
+            }
+            (root / "clipweave_history.manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            ignored_manifest = root / "clipweave_current.manifest.json"
+            ignored_manifest.write_text(json.dumps({"selected_clips": [{"file": str(ignored)}]}), encoding="utf-8")
+
+            used = manifest_used_files(root, {ignored_manifest})
+
+        self.assertIn(normalized_media_path(first), used)
+        self.assertIn(normalized_media_path(second), used)
+        self.assertNotIn(normalized_media_path(ignored), used)
+
+    def test_exclude_manifest_history_drops_used_source_files(self) -> None:
+        """Source files listed in existing manifests are skipped for new batches."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            used_clip = clip(str(root / "used.mp4"))
+            fresh_clip = clip(str(root / "fresh.mp4"))
+            (root / "clipweave_old.manifest.json").write_text(
+                json.dumps({"selected_clips": [{"file": str(used_clip.path)}]}),
+                encoding="utf-8",
+            )
+            options = BuildOptions(input_dir=root, output=Path("new.mp4"), exclude_manifest_history=True)
+
+            remaining = exclude_manifest_history([used_clip, fresh_clip], options)
+
+        self.assertEqual([item.path.name for item in remaining], ["fresh.mp4"])
+
     def test_build_manifest_serializes_selection(self) -> None:
         """Manifest includes options, counts, clips, and transition records."""
         options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"), target=Path("target.jpg"))
@@ -580,6 +623,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(manifest["auto_grade"], False)
         self.assertEqual(manifest["structure"], "smooth")
         self.assertEqual(manifest["split_aspects"], False)
+        self.assertEqual(manifest["exclude_manifest_history"], False)
+        self.assertIsNone(manifest["source_candidates_after_manifest_filter"])
         self.assertEqual(manifest["clothing_priority"], "none")
         self.assertEqual(manifest["selected_clips"][0]["duration"], 1.234)
         self.assertEqual(manifest["selected_clips"][0]["motion_score"], 0.0)
@@ -657,7 +702,7 @@ class PipelineTests(unittest.TestCase):
         options = BuildOptions(input_dir=Path("."), output=Path("out.mp4"), split_aspects=True)
 
         with (
-            patch("clipweave.pipeline.source_pool", return_value=(selected, None, len(selected))),
+            patch("clipweave.pipeline.source_pool", return_value=(selected, None, len(selected), len(selected))),
             patch("clipweave.pipeline.render_video", return_value=[]) as render,
         ):
             manifest = build_split_aspect_videos(options)

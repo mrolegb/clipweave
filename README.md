@@ -106,7 +106,7 @@ The command line tool remains the primary interface, but Clipweave also includes
 python clipweave-gui.py
 ```
 
-The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, structure, split-aspect rendering, auto grading, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
+The UI supports the same core options as the CLI: media mode, orientation, audio, target filtering, smart editing, duration limits, ordering, structure, split-aspect rendering, manifest-history exclusion, auto grading, CRF/preset, input folder, target file, and output path. The form uses two option columns with short field explanations, checkboxes for binary options, and disables controls that do not apply to the selected media type. Builds run in a background thread and print the final manifest into the log panel.
 
 To package the GUI as a local app, install PyInstaller and build per platform:
 
@@ -258,6 +258,9 @@ Important parameters:
 - `--split-aspects`
   Build one output per source aspect-ratio group. Output filenames receive a dimensions suffix, for example `clipweave_final_448x672.mp4`.
 
+- `--exclude-manifest-history`
+  Skip source files already listed in existing `clipweave_*.manifest.json` files in the input folder. Use this with `--save-manifest` when making several non-overlapping batches from the same folder.
+
 - `--crf N` and `--preset NAME`  
   Encoding quality controls. Default is `--crf 16 --preset slow`, which favors quality over speed.
 
@@ -274,6 +277,7 @@ Clipweave reads each candidate video or image and samples visual vectors. For vi
 - optionally trim repeated clips to novel segments, or skip them when no useful segment remains, with `--smart-editing`;
 - estimate a simple motion score from sampled frame changes;
 - optionally group clips by aspect ratio and render separate outputs with `--split-aspects`;
+- optionally avoid reusing source files listed in earlier manifests with `--exclude-manifest-history`;
 - order the selected clips by visual continuity and optional structure while preserving source-time order inside trimmed segment groups;
 - shorten fade duration when the outgoing and incoming frames are already similar;
 - optionally apply light auto grading during FFmpeg normalization;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from collections import defaultdict
@@ -45,6 +46,55 @@ def discover_clips(input_dir: Path, options: BuildOptions) -> list[Clip]:
         if clip and orientation_ok(clip, options.orientation):
             clips.append(clip)
     return clips
+
+
+def normalized_media_path(path: Path) -> str:
+    """Normalize media paths so manifest history checks survive case and relative paths."""
+    return os.path.normcase(str(path.resolve()))
+
+
+def current_manifest_paths(options: BuildOptions) -> set[Path]:
+    """Return manifest paths that belong to the output currently being generated."""
+    output = options.output_path
+    paths = {output.with_suffix(".manifest.json").resolve()}
+    if options.split_aspects:
+        paths.update(output.parent.glob(f"{output.stem}_*.manifest.json"))
+    return paths
+
+
+def manifest_used_files(input_dir: Path, ignored_manifests: set[Path] | None = None) -> set[str]:
+    """Read existing manifests in a folder and return source files already selected."""
+    ignored = {path.resolve() for path in ignored_manifests or set()}
+    used: set[str] = set()
+    for manifest_path in sorted(input_dir.glob(f"{OUTPUT_PREFIX}*.manifest.json")):
+        if manifest_path.resolve() in ignored:
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        manifests = []
+        if isinstance(manifest, dict):
+            manifests.append(manifest)
+            manifests.extend(manifest.get("outputs", []))
+        for item in manifests:
+            if not isinstance(item, dict):
+                continue
+            for selected in item.get("selected_clips", []):
+                file_name = selected.get("file")
+                if file_name:
+                    used.add(normalized_media_path(Path(file_name)))
+    return used
+
+
+def exclude_manifest_history(clips: list[Clip], options: BuildOptions) -> list[Clip]:
+    """Drop clips whose source file already appears in another folder manifest."""
+    if not options.exclude_manifest_history:
+        return clips
+    used_files = manifest_used_files(options.resolved_input_dir, current_manifest_paths(options))
+    if not used_files:
+        return clips
+    return [clip for clip in clips if normalized_media_path(clip.path) not in used_files]
 
 
 def read_target(options: BuildOptions) -> Clip | None:
@@ -124,6 +174,7 @@ def select_from_pool(
     counts = {
         "after_orientation": discovered_count,
         "after_target_filter": target_count,
+        "after_manifest_filter": len(pool),
         "after_size_filter": len(candidates),
         "after_smart_filter": smart_count,
         "after_smart_trim": smart_counts["after_smart_trim"],
@@ -132,7 +183,7 @@ def select_from_pool(
     return selected, dimensions, counts, target
 
 
-def source_pool(options: BuildOptions) -> tuple[list[Clip], Clip | None, int]:
+def source_pool(options: BuildOptions) -> tuple[list[Clip], Clip | None, int, int]:
     """Discover media and apply target filtering before final selection."""
     discovered = discover_clips(options.resolved_input_dir, options)
     if not discovered:
@@ -145,13 +196,17 @@ def source_pool(options: BuildOptions) -> tuple[list[Clip], Clip | None, int]:
     clips = filter_by_target(discovered, target, options.target_threshold)
     if not clips:
         raise RuntimeError("No clips remain after target similarity filtering.")
-    return clips, target, len(discovered)
+    target_count = len(clips)
+    clips = exclude_manifest_history(clips, options)
+    if not clips:
+        raise RuntimeError("No clips remain after manifest history filtering.")
+    return clips, target, len(discovered), target_count
 
 
 def select_clips(options: BuildOptions) -> tuple[list[Clip], tuple[int, int], dict[str, int | None], Clip | None]:
     """Apply orientation, size, duplicate, ordering, and duration filters."""
-    clips, target, discovered_count = source_pool(options)
-    return select_from_pool(clips, options, target, discovered_count, len(clips), True)
+    clips, target, discovered_count, target_count = source_pool(options)
+    return select_from_pool(clips, options, target, discovered_count, target_count, True)
 
 
 def render_video(
@@ -208,6 +263,7 @@ def build_manifest(
         "auto_grade": options.auto_grade,
         "structure": options.structure,
         "split_aspects": options.split_aspects,
+        "exclude_manifest_history": options.exclude_manifest_history,
         "clothing_priority": options.clothing_priority,
         "smart_editing": options.smart_editing,
         "smart_sample_rate": options.smart_sample_rate if options.smart_editing else None,
@@ -223,6 +279,7 @@ def build_manifest(
         "source_candidates": candidate_count["after_size_filter"],
         "source_candidates_after_orientation": candidate_count["after_orientation"],
         "source_candidates_after_target_filter": candidate_count["after_target_filter"],
+        "source_candidates_after_manifest_filter": candidate_count.get("after_manifest_filter"),
         "source_candidates_after_smart_filter": candidate_count["after_smart_filter"] if options.smart_editing else None,
         "source_candidates_after_smart_trim": candidate_count["after_smart_trim"] if options.smart_editing else None,
         "source_candidates_after_smart_dedupe": candidate_count["after_smart_dedupe"] if options.smart_editing else None,
@@ -260,7 +317,7 @@ def write_sidecars(options: BuildOptions, clips: list[Clip], output: Path, manif
 
 def build_split_aspect_videos(options: BuildOptions) -> dict:
     """Build one output video for each source aspect-ratio group."""
-    clips, target, discovered_count = source_pool(options)
+    clips, target, discovered_count, target_count = source_pool(options)
     outputs = []
     for group in grouped_by_aspect(clips):
         selected, dimensions, candidate_count, _ = select_from_pool(
@@ -268,7 +325,7 @@ def build_split_aspect_videos(options: BuildOptions) -> dict:
             options,
             target,
             discovered_count,
-            len(clips),
+            target_count,
             False,
         )
         output = variant_output_path(options.output_path, dimensions)
@@ -281,6 +338,7 @@ def build_split_aspect_videos(options: BuildOptions) -> dict:
     return {
         "input_dir": str(options.resolved_input_dir),
         "split_aspects": True,
+        "exclude_manifest_history": options.exclude_manifest_history,
         "outputs_count": len(outputs),
         "outputs": outputs,
     }
